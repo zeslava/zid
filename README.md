@@ -28,17 +28,21 @@ make start
 |-------|----------|----------|
 | GET | `/` | HTML форма логина |
 | POST | `/` | Отправка формы логина (form data) |
+| GET | `/register` | HTML форма регистрации |
+| POST | `/register` | Отправка формы регистрации (form data) |
 | POST | `/login` | Аутентификация через JSON API |
-| POST | `/register` | Регистрация нового пользователя |
 | POST | `/verify` | Верификация тикета (one-time use) |
 | POST | `/logout` | Удаление сессии |
 | GET | `/health` | Health check |
 
-### Регистрация
+### Регистрация (HTML форма)
+Откройте в браузере: http://localhost:5555/register
+
+Или через curl:
 ```bash
 curl -X POST http://localhost:5555/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"alice","password":"secret123"}'
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'username=alice&password=secret123&password_confirm=secret123'
 ```
 
 ### Логин (JSON API)

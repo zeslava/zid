@@ -64,16 +64,5 @@ impl IntoResponse for LogoutResponse {
 pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct CreateUserResponse {
-    pub success: bool,
-    pub username: String,
-}
-
-impl IntoResponse for CreateUserResponse {
-    fn into_response(self) -> Response {
-        (StatusCode::CREATED, Json(self)).into_response()
-    }
+    pub password_confirm: String,
 }

@@ -11,8 +11,8 @@ use axum::{
 
 use crate::{
     adapters::http::dto::{
-        CreateUserRequest, CreateUserResponse, LoginRequest, LoginResponse, LogoutRequest,
-        LogoutResponse, VerifyRequest, VerifyResponse,
+        CreateUserRequest, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse,
+        VerifyRequest, VerifyResponse,
     },
     ports::{error::Error, zid_service::ZidService},
 };
@@ -45,8 +45,9 @@ pub async fn login_form(State(_state): State<RouterState>) -> impl IntoResponse 
                 input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
                 button { padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
                 button:hover { background: #0056b3; }
-                .success { color: green; padding: 10px; background: #d4edda; border-radius: 4px; margin-bottom: 10px; }
-                .error { color: red; padding: 10px; background: #f8d7da; border-radius: 4px; margin-bottom: 10px; }
+                .link { text-align: center; margin-top: 15px; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
             </style>
         </head>
         <body>
@@ -57,6 +58,76 @@ pub async fn login_form(State(_state): State<RouterState>) -> impl IntoResponse 
                 <input type="text" name="return_to" placeholder="Return URL" value="http://localhost:3000" required />
                 <button type="submit">Login</button>
             </form>
+            <div class="link">
+                <a href="/register">Don't have an account? Register</a>
+            </div>
+        </body>
+        </html>
+    "#;
+
+    axum::response::Html(html)
+}
+
+pub async fn register_form(State(_state): State<RouterState>) -> impl IntoResponse {
+    let html = r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>ZID Registration</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
+                form { display: flex; flex-direction: column; gap: 10px; }
+                input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+                input.error { border-color: #dc3545; }
+                button { padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                button:hover { background: #218838; }
+                button:disabled { background: #6c757d; cursor: not-allowed; }
+                .link { text-align: center; margin-top: 15px; }
+                a { color: #007bff; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+                .error-message { color: #dc3545; font-size: 14px; margin-top: -5px; display: none; }
+                .error-message.show { display: block; }
+            </style>
+        </head>
+        <body>
+            <h1>Create Account</h1>
+            <form method="post" action="/register" id="registerForm">
+                <input type="text" name="username" id="username" placeholder="Username" required minlength="3" />
+                <input type="password" name="password" id="password" placeholder="Password" required minlength="6" />
+                <input type="password" name="password_confirm" id="password_confirm" placeholder="Confirm Password" required minlength="6" />
+                <div class="error-message" id="passwordError">Passwords do not match</div>
+                <button type="submit" id="submitBtn">Register</button>
+            </form>
+            <div class="link">
+                <a href="/">Already have an account? Login</a>
+            </div>
+            <script>
+                const password = document.getElementById('password');
+                const passwordConfirm = document.getElementById('password_confirm');
+                const submitBtn = document.getElementById('submitBtn');
+                const errorMessage = document.getElementById('passwordError');
+
+                function validatePasswords() {
+                    if (passwordConfirm.value.length > 0) {
+                        if (password.value !== passwordConfirm.value) {
+                            passwordConfirm.classList.add('error');
+                            errorMessage.classList.add('show');
+                            submitBtn.disabled = true;
+                        } else {
+                            passwordConfirm.classList.remove('error');
+                            errorMessage.classList.remove('show');
+                            submitBtn.disabled = false;
+                        }
+                    } else {
+                        passwordConfirm.classList.remove('error');
+                        errorMessage.classList.remove('show');
+                        submitBtn.disabled = false;
+                    }
+                }
+
+                password.addEventListener('input', validatePasswords);
+                passwordConfirm.addEventListener('input', validatePasswords);
+            </script>
         </body>
         </html>
     "#;
@@ -216,20 +287,91 @@ pub async fn logout(
     Ok(LogoutResponse {})
 }
 
-pub async fn create_user(
+pub async fn register_form_submit(
     State(state): State<RouterState>,
-    Json(req): Json<CreateUserRequest>,
-) -> Result<CreateUserResponse, HttpError> {
-    let username = req.username.clone();
+    Form(req): Form<CreateUserRequest>,
+) -> impl IntoResponse {
+    // Проверяем совпадение паролей
+    if req.password != req.password_confirm {
+        let html = r#"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Registration Failed</title>
+                <style>
+                    body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
+                    .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
+                    a { color: #007bff; text-decoration: none; margin-top: 10px; display: inline-block; }
+                </style>
+            </head>
+            <body>
+                <div class="error">
+                    <h2>Registration Failed</h2>
+                    <p>Passwords do not match</p>
+                    <a href="/register">← Try again</a>
+                </div>
+            </body>
+            </html>
+        "#;
+        return (StatusCode::BAD_REQUEST, axum::response::Html(html)).into_response();
+    }
 
     // Запускаем синхронный код в отдельном thread pool
-    tokio::task::spawn_blocking(move || state.zid.create_user(&req.username, &req.password))
-        .await??;
+    let result =
+        tokio::task::spawn_blocking(move || state.zid.create_user(&req.username, &req.password))
+            .await;
 
-    Ok(CreateUserResponse {
-        success: true,
-        username,
-    })
+    match result {
+        Ok(Ok(_)) => {
+            // Success - redirect to login
+            let html = r#"
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Registration Successful</title>
+                    <meta http-equiv="refresh" content="2;url=/" />
+                    <style>
+                        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
+                        .success { color: #155724; padding: 20px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; }
+                        a { color: #007bff; text-decoration: none; }
+                    </style>
+                </head>
+                <body>
+                    <div class="success">
+                        <h2>✓ Registration Successful!</h2>
+                        <p>Redirecting to login page...</p>
+                        <p><a href="/">Click here if not redirected</a></p>
+                    </div>
+                </body>
+                </html>
+            "#;
+            (StatusCode::OK, axum::response::Html(html)).into_response()
+        }
+        Ok(Err(_)) | Err(_) => {
+            // Error - show error page
+            let html = r#"
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Registration Failed</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
+                        .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
+                        a { color: #007bff; text-decoration: none; margin-top: 10px; display: inline-block; }
+                    </style>
+                </head>
+                <body>
+                    <div class="error">
+                        <h2>Registration Failed</h2>
+                        <p>Username already exists or invalid input</p>
+                        <a href="/register">← Try again</a>
+                    </div>
+                </body>
+                </html>
+            "#;
+            (StatusCode::CONFLICT, axum::response::Html(html)).into_response()
+        }
+    }
 }
 
 // HTTP error wrapper type

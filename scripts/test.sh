@@ -21,17 +21,40 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Step 0: Register test user${NC}"
+echo -e "${YELLOW}Step 0a: Test password mismatch validation${NC}"
+echo "POST $BASE_URL/register (with mismatched passwords)"
+
+MISMATCH_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "$BASE_URL/register" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'username=testmismatch&password=secret&password_confirm=different')
+
+# Extract body and status code
+MISMATCH_BODY=$(echo "$MISMATCH_RESPONSE" | sed -e 's/HTTP_CODE\:.*//g')
+MISMATCH_HTTP_CODE=$(echo "$MISMATCH_RESPONSE" | tr -d '\n' | sed -e 's/.*HTTP_CODE://')
+
+if echo "$MISMATCH_BODY" | grep -q "Passwords do not match"; then
+    echo -e "${GREEN}✅ Password mismatch validation working correctly${NC}"
+else
+    echo -e "${RED}❌ Password mismatch validation failed${NC}"
+    exit 1
+fi
+echo ""
+
+sleep 1
+
+echo -e "${YELLOW}Step 0b: Register test user${NC}"
 echo "POST $BASE_URL/register"
 
 REGISTER_RESPONSE=$(curl -s -X POST "$BASE_URL/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "admin",
-    "password": "secret"
-  }')
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'username=admin&password=secret&password_confirm=secret')
 
-echo "Response: $REGISTER_RESPONSE"
+# Check if registration was successful (look for "Registration Successful" in HTML)
+if echo "$REGISTER_RESPONSE" | grep -q "Registration Successful"; then
+    echo "Response: Registration successful (HTML page returned)"
+else
+    echo "Response: Registration may have failed or user already exists"
+fi
 echo ""
 
 sleep 1
@@ -129,11 +152,8 @@ echo -e "${YELLOW}Step 4: Test with wrong service URL${NC}"
 
 # Register second test user
 curl -s -X POST "$BASE_URL/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "test_user",
-    "password": "secret"
-  }' > /dev/null
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'username=test_user&password=secret&password_confirm=secret' > /dev/null
 
 # Login again to get a new ticket
 LOGIN_RESPONSE_2=$(curl -s -X POST "$BASE_URL/login" \
