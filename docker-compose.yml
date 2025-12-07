@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: zid-postgres
+    environment:
+      POSTGRES_DB: zid
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - zid-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: zid-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 2s
+      retries: 3
+      start_period: 2s
+    networks:
+      - zid-network
+
+  zid-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zid-app
+    ports:
+      - "5555:5555"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: zid
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      REDIS_URL: redis://redis:6379
+      # Note: REDIS_URL uses internal Docker network (redis:6379)
+      # External access is on host port 6380
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:5555/health",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+    networks:
+      - zid-network
+    restart: unless-stopped
+    stop_grace_period: 5s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  zid-network:
+    driver: bridge
