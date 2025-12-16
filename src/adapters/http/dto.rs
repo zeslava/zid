@@ -11,19 +11,31 @@ use serde::{Deserialize, Serialize};
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
-    pub return_to: String,
+    #[serde(default)]
+    pub return_to: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct LoginResponse {
     pub ticket: String,
-    pub redirect_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redirect_url: Option<String>,
 }
 
 impl IntoResponse for LoginResponse {
     fn into_response(self) -> Response {
         (StatusCode::OK, Json(self)).into_response()
     }
+}
+
+/// Запрос на "Continue as ..." по существующей SSO-сессии ZID
+///
+/// Клиент передаёт `return_to` (опционально) и использует cookie `zid_sso`
+/// для аутентификации на стороне ZID.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ContinueAsRequest {
+    #[serde(default)]
+    pub return_to: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -65,4 +77,17 @@ pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
     pub password_confirm: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TelegramLoginRequest {
+    pub id: i64,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub username: Option<String>,
+    pub photo_url: Option<String>,
+    pub auth_date: i64,
+    pub hash: String,
+    #[serde(default)]
+    pub return_to: Option<String>,
 }

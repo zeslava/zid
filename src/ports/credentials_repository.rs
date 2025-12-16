@@ -8,7 +8,4 @@ pub trait CredentialsRepository: Send + Sync {
 
     /// Create or update user credentials with hashed password
     fn create_user(&self, username: &str, password: &str) -> Result<(), Error>;
-
-    /// Hash password using Argon2
-    fn hash_password(&self, password: &str) -> Result<String, Error>;
 }

@@ -6,17 +6,17 @@ use redis::Commands;
 
 use crate::ports::{credentials_repository::CredentialsRepository, error::Error};
 
-pub struct CredentialRedisRepo {
+pub struct RedisCredentialsRepository {
     client: redis::Client,
 }
 
-impl CredentialRedisRepo {
+impl RedisCredentialsRepository {
     pub fn new(client: redis::Client) -> Self {
-        CredentialRedisRepo { client }
+        RedisCredentialsRepository { client }
     }
 }
 
-impl CredentialsRepository for CredentialRedisRepo {
+impl CredentialsRepository for RedisCredentialsRepository {
     fn validate(&self, username: &str, password: &str) -> Result<(), Error> {
         let mut conn = self
             .client
@@ -56,7 +56,7 @@ impl CredentialsRepository for CredentialRedisRepo {
         let key = format!("credentials:username:{}", username);
 
         // Hash the password
-        let password_hash = self.hash_password(password)?;
+        let password_hash = hash_password(password)?;
 
         // Store in Redis
         let _: () = conn
@@ -65,18 +65,18 @@ impl CredentialsRepository for CredentialRedisRepo {
 
         Ok(())
     }
+}
 
-    fn hash_password(&self, password: &str) -> Result<String, Error> {
-        // Generate a random salt
-        let salt = SaltString::generate(&mut OsRng);
+fn hash_password(password: &str) -> Result<String, Error> {
+    // Generate a random salt
+    let salt = SaltString::generate(&mut OsRng);
 
-        // Hash password with Argon2
-        let argon2 = Argon2::default();
-        let password_hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| Error::InternalError(format!("Failed to hash password: {}", e)))?
-            .to_string();
+    // Hash password with Argon2
+    let argon2 = Argon2::default();
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| Error::InternalError(format!("Failed to hash password: {}", e)))?
+        .to_string();
 
-        Ok(password_hash)
-    }
+    Ok(password_hash)
 }

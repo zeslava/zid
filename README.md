@@ -1,236 +1,344 @@
 # ZID CAS Server
 
-Простой и эффективный CAS (Central Authentication Service) сервер на Rust.
+ZID — простой CAS-подобный сервер аутентификации на Rust: пользователь логинится в ZID, ZID выдаёт **one-time ticket**, а ваше приложение подтверждает ticket через `/verify` и получает идентичность пользователя.
 
-## 🚀 Quick Start
+## Cookies / SSO (важно для продакшена и локальной разработки)
+
+ZID использует SSO-cookie `zid_sso`, чтобы "узнавать" пользователя и предлагать **Continue** без повторного ввода логина/пароля.
+
+### Secure cookie и локальная разработка
+
+Современные браузеры **не принимают cookie с атрибутом `Secure` по HTTP**. Поэтому:
+- в проде ZID должен работать за HTTPS (и cookie должна быть `Secure`)
+- локально (если ты запускаешь ZID по `http://localhost:5555`) нужно отключить `Secure`, иначе SSO "не запомнится"
+
+Это управляется переменной окружения `ZID_COOKIE_SECURE`:
+
+- `auto` (по умолчанию): ZID сам определяет HTTPS по заголовкам (`X-Forwarded-Proto=https` / `Forwarded: proto=https`)
+- `true` / `1`: всегда ставить `Secure`
+- `false` / `0`: никогда не ставить `Secure` (удобно для локальной разработки по HTTP)
+
+Рекомендации:
+- **prod**: `ZID_COOKIE_SECURE=auto` (или `true`) + HTTPS + прокси должен прокидывать `X-Forwarded-Proto=https`
+- **local http**: `ZID_COOKIE_SECURE=false`
+
+Как это работает на практике:  
+1) отправляешь пользователя на ZID (или используешь JSON API),  
+2) ZID возвращает ticket (через редирект или прямо в ответе),  
+3) твоё приложение обменивает ticket на user info через `/verify`.
+
+---
+
+## Быстрый ориентир (2 минуты)
+
+### В браузере (самый частый сценарий)
+1. Ты переводишь пользователя на:
+   - `GET http://zid-host:5555/?return_to=https://yourapp.com/callback`
+2. Пользователь логинится.
+3. ZID делает редирект на:
+   - `https://yourapp.com/callback?ticket=<TICKET>`
+4. Твой backend вызывает:
+   - `POST http://zid-host:5555/verify` с `{ "ticket": "...", "service": "https://yourapp.com/callback" }`
+5. Получаешь `{ user_id, username, session_id }`, создаёшь свою сессию/куку.
+
+### Через API (когда не нужен UI/redirect)
+1. Клиент вызывает `POST /login` (JSON) **без** `return_to`.
+2. ZID возвращает `{ "ticket": "..." }`.
+3. Ты вызываешь `/verify` и получаешь пользователя.
+
+---
+
+## Quick Start (Docker)
 
 ```bash
-# Запуск
 docker compose up -d
-
-# Или через Makefile
-make start
+# ZID будет доступен на http://localhost:5555
 ```
 
-Сервер будет доступен на http://localhost:5555
-
-## ✨ Особенности
-
-- ✅ **Argon2id** хеширование паролей
-- ✅ **One-time use** тикеты с TTL
-- ✅ **Service URL** валидация
-- ✅ PostgreSQL + Redis
-- ✅ Docker Compose
-
-## 📋 API
-
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/` | HTML форма логина |
-| POST | `/` | Отправка формы логина (form data) |
-| GET | `/register` | HTML форма регистрации |
-| POST | `/register` | Отправка формы регистрации (form data) |
-| POST | `/login` | Аутентификация через JSON API |
-| POST | `/verify` | Верификация тикета (one-time use) |
-| POST | `/logout` | Удаление сессии |
-| GET | `/health` | Health check |
-
-### Регистрация (HTML форма)
-Откройте в браузере: http://localhost:5555/register
-
-Или через curl:
+Проверка здоровья:
 ```bash
-curl -X POST http://localhost:5555/register \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d 'username=alice&password=secret123&password_confirm=secret123'
+curl -s http://localhost:5555/health
 ```
 
-### Логин (JSON API)
+---
+
+## Публичные endpoints
+
+| Метод | Endpoint | Для кого | Что делает |
+|------:|----------|----------|------------|
+| GET   | `/` | Browser | HTML форма логина (поддерживает `return_to`) |
+| POST  | `/` | Browser | submit формы логина (`application/x-www-form-urlencoded`) |
+| GET   | `/register` | Browser | HTML форма регистрации |
+| POST  | `/register` | Browser | submit регистрации (`application/x-www-form-urlencoded`) |
+| POST  | `/login` | API | логин JSON → ticket (+опционально redirect_url) |
+| POST  | `/login/telegram` | API | Telegram login JSON → ticket (+опционально redirect_url) |
+| POST  | `/verify` | Backend | one-time verify ticket → user info |
+| POST  | `/logout` | Backend/API | удаление сессии (по `session_id`) |
+| GET   | `/health` | Ops | health check |
+
+---
+
+## Сценарий: Логин через браузер с редиректом (return_to)
+
+### 1) Отправь пользователя на страницу ZID
+
+Открой в браузере:
+
+`http://localhost:5555/?return_to=https://yourapp.com/callback`
+
+> `return_to` — URL твоего приложения (куда ZID вернёт пользователя).
+> Он должен проходить проверку trusted domains (см. `TRUSTED_DOMAINS` ниже).
+
+### 2) Пользователь логинится
+
+Форма отправляется на `POST /` (это делает браузер).
+
+### 3) ZID редиректит обратно
+
+ZID вернёт пользователя на:
+
+`https://yourapp.com/callback?ticket=<uuid>`
+
+Ticket одноразовый и короткоживущий.
+
+### 4) Твоё приложение подтверждает ticket
+
+Запрос:
+```bash
+curl -X POST http://localhost:5555/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticket":"<TICKET_FROM_QUERY>",
+    "service":"https://yourapp.com/callback"
+  }'
+```
+
+Ответ (пример):
+```json
+{
+  "success": true,
+  "user_id": "176f8257-4bec-4350-99bf-e023186fd04a",
+  "username": "alice",
+  "session_id": "b2a2d2d6-8c8f-4f65-bfb0-3d2bb4c1c6d9"
+}
+```
+
+Дальше обычно:
+- создаёшь свою сессию (cookie/JWT) и
+- редиректишь пользователя в уже защищённый раздел приложения.
+
+---
+
+## Сценарий: Логин через браузер без return_to (без редиректа)
+
+Если `return_to` **не задан**, редиректа **не будет**.
+
+### Пример:
+
+Открой: `http://localhost:5555/`
+
+После логина ZID вернёт HTML-страницу успеха, где будет показан ticket.
+
+Это удобно для ручной отладки и простых интеграций.
+
+---
+
+## Сценарий: Логин через JSON API (без UI)
+
+### Логин без return_to (без редиректа)
+
+Запрос:
+```bash
+curl -X POST http://localhost:5555/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username":"alice",
+    "password":"secret123"
+  }'
+```
+
+Ответ:
+```json
+{
+  "ticket": "4b53f154-3747-463c-9a57-6e856edf4f3a"
+}
+```
+
+Дальше подтверждаешь ticket через `/verify` так же, как в Flow 1.
+
+### Логин с return_to (если тебе удобен готовый redirect_url)
+
+Запрос:
 ```bash
 curl -X POST http://localhost:5555/login \
   -H "Content-Type: application/json" \
   -d '{
     "username":"alice",
     "password":"secret123",
-    "return_to":"http://localhost:3000"
+    "return_to":"https://yourapp.com/callback"
   }'
 ```
 
-### Логин (HTML форма)
-Откройте в браузере: http://localhost:5555/
-
-**Ответ:**
+Ответ:
 ```json
 {
-  "ticket": "abc-123...",
-  "redirect_url": "http://localhost:3000?ticket=abc-123..."
+  "ticket": "7ee2015f-6112-4db7-adac-d46d03ece91f",
+  "redirect_url": "https://yourapp.com/callback?ticket=7ee2015f-6112-4db7-adac-d46d03ece91f"
 }
 ```
 
-### Верификация тикета
-```bash
-curl -X POST http://localhost:5555/verify \
-  -H "Content-Type: application/json" \
-  -d '{
-    "ticket":"abc-123...",
-    "service":"http://localhost:3000"
-  }'
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "user_id": "...",
-  "username": "alice",
-  "session_id": "..."
-}
-```
-
-⚠️ **Важно:** Тикеты одноразовые и удаляются после верификации!
-
-### Logout
-```bash
-curl -X POST http://localhost:5555/logout \
-  -H "Content-Type: application/json" \
-  -d '{"session_id":"..."}'
-```
-
-## 🔐 Безопасность
-
-### Argon2id Password Hashing
-- Memory-hard (19 MB, 2 iterations)
-- Уникальная соль на пароль
-- OWASP recommended
-- Constant-time сравнение
-
-**Формат хеша:**
-```
-$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
-```
-
-### Ticket Security
-- ✅ One-time use
-- ✅ 5-минутный TTL
-- ✅ Привязка к service URL
-- ✅ Trusted domains only
-
-**Подробнее:** [docs/SECURITY.md](docs/SECURITY.md)
-
-## 🐳 Docker
-
-```bash
-# Запуск
-docker compose up -d
-
-# Логи
-make logs
-
-# Остановка
-make down
-```
-
-**Сервисы:**
-- App: http://localhost:5555
-- PostgreSQL: localhost:5432
-- Redis: localhost:6380
-
-## 🧪 Тестирование
-
-```bash
-# End-to-end тест (регистрация → логин → верификация)
-./scripts/test.sh
-```
-
-**Тест проверяет:**
-- ✅ Регистрацию пользователей
-- ✅ Логин через JSON API
-- ✅ Верификацию тикета
-- ✅ One-time use (повторная верификация отклоняется)
-- ✅ Проверку service URL
-
-## 📦 Зависимости
-
-```toml
-[dependencies]
-anyhow = "1.0"
-argon2 = "0.5"
-axum = "0.8"
-postgres = "0.19"
-r2d2 = "0.8"
-r2d2_postgres = "0.18"
-rand_core = { version = "0.6", features = ["getrandom"] }
-redis = "0.27"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.48", features = ["full"] }
-url = "2.5"
-uuid = { version = "1.19", features = ["v4"] }
-```
-
-## 🗄️ База данных
-
-### PostgreSQL
-```sql
-CREATE TABLE users (
-    id VARCHAR(36) PRIMARY KEY,
-    username VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Redis Keys
-```
-credentials:username:{username} → Argon2 hash
-session:id:{session_id} → Session data
-ticket:id:{ticket_id} → Ticket data (TTL: 5m)
-```
-
-## 📚 Документация
-
-- [API Reference](docs/API_REFERENCE.md) - Полный API
-- [Security](docs/SECURITY.md) - Безопасность
-- [Ticket Verification](docs/TICKET_VERIFICATION.md) - Детали верификации
-- [Docker Guide](DOCKER.md) - Docker deployment
-- [Quick Start](QUICKSTART.md) - Быстрый старт
-
-## 🛠️ Разработка
-
-### Локальный запуск (без Docker)
-
-```bash
-# PostgreSQL
-createdb zid
-
-# Запуск
-cargo run --release
-```
-
-### Makefile команды
-```bash
-make help         # Все команды
-make build        # Собрать
-make logs         # Логи
-make db-shell     # PostgreSQL shell
-make redis-cli    # Redis CLI
-```
-
-## ✅ TODO
-
-- [x] Argon2 password hashing
-- [x] Ticket verification
-- [x] User registration
-- [x] Health check
-- [ ] Logging (tracing)
-- [ ] Rate limiting
-- [ ] CSRF protection
-- [ ] Password requirements
-- [ ] Metrics (Prometheus)
-
-## 📝 Лицензия
-
-MIT
+> `redirect_url` опционален и возвращается только если `return_to` задан и не пустой.
 
 ---
 
-**Полная документация:** [docs/](docs/)
+## Сценарий: Регистрация пользователя
+
+### Через браузер
+Открой: `http://localhost:5555/register`
+
+### Через curl (form)
+```bash
+curl -X POST http://localhost:5555/register \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d 'username=alice&password=secret123&password_confirm=secret123'
+```
+
+---
+
+## Сценарий: Вход через Telegram
+
+Включает вход через Telegram Widget (на странице логина) и endpoint `/login/telegram`.
+
+Нужно настроить env:
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_BOT_USERNAME=your_bot_username
+TELEGRAM_AUTO_REGISTER=true
+```
+
+Подробности и примеры: `docs/TELEGRAM_LOGIN.md`
+
+---
+
+## Важные правила (чтобы не удивляться)
+
+### Tickets
+- **Одноразовые**: повторный `/verify` для того же ticket должен быть отклонён.
+- **TTL ~ 5 минут** (tickеты истекают быстро).
+- Ticket привязан к `service` (service URL): при `/verify` нужно передавать тот же сервис, под который ticket выдавался.
+
+### return_to / trusted domains
+ZID валидирует `return_to` по списку доверенных доменов.
+
+Настраивается через `TRUSTED_DOMAINS`:
+```bash
+TRUSTED_DOMAINS=localhost,127.0.0.1,*.local.dev,*.myapp.com,myapp.example.com
+```
+
+Для продакшена обязательно добавь домены твоих приложений.
+
+---
+
+## Примеры ошибок (на что смотреть)
+
+### Неверный пароль
+- `POST /login` вернёт ошибку (HTTP зависит от обработчика; в HTML — 401 страница Unauthorized).
+
+### Неверный return_to
+Если `return_to` не проходит проверку, логин будет отклонён. Проверь `TRUSTED_DOMAINS`.
+
+### Ticket уже использован / просрочен
+`/verify` не даст user info.
+
+---
+
+## Конфигурация
+
+### Переменные окружения
+
+```bash
+# PostgreSQL
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=zid
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+
+# Redis
+REDIS_URL=redis://127.0.0.1:6380
+
+# Server
+SERVER_HOST=0.0.0.0
+SERVER_PORT=5555
+
+# return_to allowlist
+TRUSTED_DOMAINS=localhost,127.0.0.1,*.local.dev,*.local,*.lan
+
+# Telegram (опционально)
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_AUTO_REGISTER=true
+
+# Cookie / SSO
+# См. раздел "Cookies / SSO" выше
+ZID_COOKIE_SECURE=auto        # auto (по умолчанию) / true / false
+
+# Storage backend (опционально)
+SESSION_STORAGE=redis         # redis (по умолчанию) или postgres
+TICKET_STORAGE=redis          # redis (по умолчанию) или postgres
+CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
+```
+
+### Про storage
+- `SESSION_STORAGE` / `TICKET_STORAGE`
+  - `redis` (по умолчанию): TTL «из коробки»
+  - `postgres`: хранение в БД (нужна периодическая очистка просроченных записей)
+- `CREDENTIALS_STORAGE`
+  - `postgres` (по умолчанию): credentials в PostgreSQL
+  - `redis`: альтернативный вариант
+
+---
+
+## Docker: полезное
+
+```bash
+# запуск
+docker compose up -d
+
+# логи
+docker compose logs -f zid-app
+
+# остановка
+docker compose down
+```
+
+Сервисы по умолчанию:
+- App: `http://localhost:5555`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6380`
+
+---
+
+## Тестирование
+
+E2E тест (регистрация → логин → verify):
+```bash
+./scripts/test.sh
+```
+
+---
+
+## Документация
+
+- `docs/TELEGRAM_LOGIN.md` — интеграция Telegram Login
+- `docs/API_REFERENCE.md` — полный API
+- `docs/SECURITY.md` — безопасность
+- `docs/TICKET_VERIFICATION.md` — детали верификации тикетов
+- `DOCKER.md` — Docker deployment
+- `QUICKSTART.md` — быстрый старт
+
+---
+
+## License
+
+MIT

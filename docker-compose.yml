@@ -44,6 +44,13 @@ services:
     ports:
       - "5555:5555"
     environment:
+      # Local dev convenience:
+      # - When running ZID over plain HTTP (no TLS), browsers will ignore `Secure` cookies.
+      # - Set this to `false` locally so SSO cookies work.
+      # Production recommendation:
+      # - Use HTTPS and set `ZID_COOKIE_SECURE=auto` (default) or `true`.
+      ZID_COOKIE_SECURE: "false"
+
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: zid
@@ -52,6 +59,14 @@ services:
       REDIS_URL: redis://redis:6379
       # Note: REDIS_URL uses internal Docker network (redis:6379)
       # External access is on host port 6380
+      TRUSTED_DOMAINS: "localhost,127.0.0.1,*.local.dev,*.local,*.lan,*.blue-istrian.ts.net"
+      # Telegram Login Configuration
+      # Получите токен у @BotFather в Telegram
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      # Username бота без @ (например: mybot)
+      TELEGRAM_BOT_USERNAME: "${TELEGRAM_BOT_USERNAME:-}"
+      # Автоматически создавать пользователей при первом входе через Telegram
+      TELEGRAM_AUTO_REGISTER: "${TELEGRAM_AUTO_REGISTER:-true}"
     depends_on:
       postgres:
         condition: service_healthy

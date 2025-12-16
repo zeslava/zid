@@ -3,17 +3,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::ports::{entities::Ticket, error::Error, ticket_repository::TicketRepository};
 
-pub struct TicketRedisRepo {
+pub struct RedisTicketRepository {
     client: redis::Client,
 }
 
-impl TicketRedisRepo {
+impl RedisTicketRepository {
     pub fn new(client: redis::Client) -> Self {
-        TicketRedisRepo { client }
+        RedisTicketRepository { client }
     }
 }
 
-impl TicketRepository for TicketRedisRepo {
+impl TicketRepository for RedisTicketRepository {
     fn create(
         &self,
         session_id: &str,
@@ -79,42 +79,6 @@ impl TicketRepository for TicketRedisRepo {
         }
     }
 
-    fn consume(&self, ticket_id: &str) -> Result<(), Error> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-        let key = format!("ticket:id:{}", ticket_id);
-
-        // Get ticket
-        let res: Option<String> = conn
-            .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-        match res {
-            Some(data) => {
-                let mut dto: TicketDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-                if dto.consumed {
-                    return Err(Error::TicketConsumed);
-                }
-
-                dto.consumed = true;
-                let serialized = serde_json::to_string(&dto)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-                let _: () = conn
-                    .set(&key, &serialized)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-                Ok(())
-            }
-            None => Err(Error::TicketNotFound),
-        }
-    }
-
     fn delete(&self, ticket_id: &str) -> Result<(), Error> {
         let mut conn = self
             .client
@@ -127,20 +91,6 @@ impl TicketRepository for TicketRedisRepo {
             .map_err(|e| Error::RepositoryError(e.to_string()))?;
 
         Ok(())
-    }
-
-    fn exists(&self, ticket_id: &str) -> Result<bool, Error> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-        let key = format!("ticket:id:{}", ticket_id);
-        let exists: bool = conn
-            .exists(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
-        Ok(exists)
     }
 }
 

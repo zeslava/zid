@@ -22,6 +22,7 @@ help:
 	@echo "Database:"
 	@echo "  db-shell     Connect to PostgreSQL shell"
 	@echo "  redis-cli    Connect to Redis CLI"
+	@echo "  db-migrate   Apply database migrations"
 	@echo "  db-reset     Reset database (dangerous!)"
 	@echo ""
 	@echo "Debug:"
@@ -87,14 +88,17 @@ ps:
 clean:
 	@echo "🧹 Cleaning up..."
 	@echo "⚠️  This will remove all containers, volumes, and images!"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose down -v --rmi all; \
-		echo "✅ Cleanup completed"; \
-	else \
-		echo "❌ Cleanup cancelled"; \
-	fi
+	@printf "Are you sure? [y/N] "; \
+	read REPLY; \
+	case "$$REPLY" in \
+		[Yy]*) \
+			docker compose down -v --rmi all; \
+			echo "✅ Cleanup completed"; \
+			;; \
+		*) \
+			echo "❌ Cleanup cancelled"; \
+			;; \
+	esac
 
 # Run tests
 test:
@@ -124,20 +128,32 @@ redis-cli:
 	@echo "🔴 Connecting to Redis..."
 	docker compose exec redis redis-cli
 
+# Apply database migrations
+db-migrate:
+	@echo "🔄 Applying database migrations..."
+	@for f in migrations/*.sql; do \
+		echo "  Applying $$f..."; \
+		docker compose exec -T postgres psql -U postgres -d zid -f /docker-entrypoint-initdb.d/$$(basename $$f) 2>&1 | grep -v "already exists" || true; \
+	done
+	@echo "✅ Migrations applied"
+
 # Reset database (dangerous!)
 db-reset:
 	@echo "⚠️  WARNING: This will delete all data in the database!"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS zid;"; \
-		docker compose exec postgres psql -U postgres -c "CREATE DATABASE zid;"; \
-		docker compose restart postgres; \
-		echo "✅ Database reset completed"; \
-		echo "💡 Run 'make up' to apply migrations"; \
-	else \
-		echo "❌ Reset cancelled"; \
-	fi
+	@printf "Are you sure? [y/N] "; \
+	read REPLY; \
+	case "$$REPLY" in \
+		[Yy]*) \
+			docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS zid;"; \
+			docker compose exec postgres psql -U postgres -c "CREATE DATABASE zid;"; \
+			sleep 2; \
+			$(MAKE) db-migrate; \
+			echo "✅ Database reset completed"; \
+			;; \
+		*) \
+			echo "❌ Reset cancelled"; \
+			;; \
+	esac
 
 # Shell into application container
 shell:

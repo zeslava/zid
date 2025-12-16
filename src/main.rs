@@ -7,7 +7,10 @@ use r2d2_postgres::PostgresConnectionManager;
 use crate::{
     adapters::http::{handlers::RouterState, routes},
     application::zid_app::ZidApp,
-    ports::zid_service::ZidService,
+    ports::{
+        credentials_repository::CredentialsRepository, session_repository::SessionRepository,
+        ticket_repository::TicketRepository, zid_service::ZidService,
+    },
 };
 
 mod adapters;
@@ -27,6 +30,13 @@ async fn main() -> anyhow::Result<()> {
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
     let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let server_port = std::env::var("SERVER_PORT").unwrap_or_else(|_| "5555".to_string());
+
+    // Storage backend configuration
+    // Options: "postgres" or "redis" (default for sessions/tickets due to TTL support)
+    let session_storage = std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "redis".to_string());
+    let ticket_storage = std::env::var("TICKET_STORAGE").unwrap_or_else(|_| "redis".to_string());
+    let credentials_storage =
+        std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());
 
     // Configure PostgreSQL connection pool (sync)
     let pg_connection_string = format!(
@@ -53,34 +63,108 @@ async fn main() -> anyhow::Result<()> {
 
     // Create users table if it doesn't exist
     let user_repo_init =
-        adapters::persistence::user_postgres::UserPostgresRepo::new(pg_pool.clone());
+        adapters::persistence::postgres_user::PostgresUserRepository::new(pg_pool.clone());
     tokio::task::spawn_blocking(move || user_repo_init.create_table())
         .await
         .expect("Failed to spawn blocking task")?;
-    println!("✅ Database tables initialized");
+    println!("✅ Users table initialized");
 
-    // Configure Redis client (sync)
-    let redis_client = redis::Client::open(redis_url.as_str())?;
-    println!("✅ Redis client created ({})", redis_url);
+    // Initialize session repository based on configuration
+    let session_repository: Arc<dyn SessionRepository> = if session_storage.to_lowercase()
+        == "postgres"
+    {
+        // Create sessions table for PostgreSQL storage
+        let session_repo_init =
+            adapters::persistence::postgres_session::PostgresSessionRepository::new(
+                pg_pool.clone(),
+            );
+        let pool_clone = pg_pool.clone();
+        tokio::task::spawn_blocking(move || {
+            let repo =
+                adapters::persistence::postgres_session::PostgresSessionRepository::new(pool_clone);
+            repo.create_table()
+        })
+        .await
+        .expect("Failed to spawn blocking task")?;
+        println!("✅ Sessions table initialized (PostgreSQL)");
 
-    // Initialize repositories (all sync)
-    let user_repository = Arc::new(adapters::persistence::user_postgres::UserPostgresRepo::new(
-        pg_pool,
-    ));
+        Arc::new(session_repo_init)
+    } else {
+        // Use Redis for sessions
+        let redis_client = redis::Client::open(redis_url.as_str())?;
+        println!("✅ Redis client created for sessions ({})", redis_url);
 
-    let session_repository = Arc::new(adapters::persistence::session_redis::SessionRedisRepo::new(
-        redis_client.clone(),
-    ));
+        Arc::new(
+            adapters::persistence::redis_session::RedisSessionRepository::new(redis_client.clone()),
+        )
+    };
 
-    let creds_repository = Arc::new(
-        adapters::persistence::credential_redis::CredentialRedisRepo::new(redis_client.clone()),
-    );
+    // Initialize ticket repository based on configuration
+    let ticket_repository: Arc<dyn TicketRepository> = if ticket_storage.to_lowercase()
+        == "postgres"
+    {
+        // Create tickets table for PostgreSQL storage
+        // Note: tickets table requires sessions table to exist first
+        let pool_clone = pg_pool.clone();
+        tokio::task::spawn_blocking(move || {
+            let repo =
+                adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool_clone);
+            repo.create_table()
+        })
+        .await
+        .expect("Failed to spawn blocking task")?;
+        println!("✅ Tickets table initialized (PostgreSQL)");
 
-    let ticket_repository = Arc::new(adapters::persistence::ticket_redis::TicketRedisRepo::new(
-        redis_client.clone(),
-    ));
+        Arc::new(
+            adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pg_pool.clone()),
+        )
+    } else {
+        // Use Redis for tickets
+        let redis_client = redis::Client::open(redis_url.as_str())?;
+        println!("✅ Redis client created for tickets ({})", redis_url);
 
-    println!("✅ Repositories initialized");
+        Arc::new(
+            adapters::persistence::redis_ticket::RedisTicketRepository::new(redis_client.clone()),
+        )
+    };
+
+    // Initialize credentials repository based on configuration
+    let creds_repository: Arc<dyn CredentialsRepository> = if credentials_storage.to_lowercase()
+        == "postgres"
+    {
+        // Create credentials table for PostgreSQL storage
+        let pool_clone = pg_pool.clone();
+        tokio::task::spawn_blocking(move || {
+            let repo =
+                adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
+                    pool_clone,
+                );
+            repo.create_table()
+        })
+        .await
+        .expect("Failed to spawn blocking task")?;
+        println!("✅ Credentials table initialized (PostgreSQL)");
+
+        Arc::new(
+            adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
+                pg_pool.clone(),
+            ),
+        )
+    } else {
+        // Use Redis for credentials
+        let redis_client = redis::Client::open(redis_url.as_str())?;
+        println!("✅ Redis client created for credentials ({})", redis_url);
+
+        Arc::new(
+            adapters::persistence::redis_credentials::RedisCredentialsRepository::new(redis_client),
+        )
+    };
+
+    // Initialize user repository
+    let user_repository =
+        Arc::new(adapters::persistence::postgres_user::PostgresUserRepository::new(pg_pool));
+
+    println!("✅ All repositories initialized");
 
     // Create ZID application service
     let zid_application: Arc<dyn ZidService> = Arc::new(ZidApp::new(
@@ -105,7 +189,9 @@ async fn main() -> anyhow::Result<()> {
         "   - PostgreSQL: {}:{}/{} (sync with r2d2 pool)",
         pg_host, pg_port, pg_db
     );
-    println!("   - Redis: {} (sync)", redis_url);
+    println!("   - Sessions storage: {}", session_storage);
+    println!("   - Tickets storage: {}", ticket_storage);
+    println!("   - Credentials storage: {}", credentials_storage);
     println!("   - Handlers: async with spawn_blocking for sync operations");
     println!();
 
