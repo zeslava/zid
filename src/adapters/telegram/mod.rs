@@ -30,7 +30,30 @@ impl TelegramAuthData {
     /// 4. Сравниваем полученный hash с hash от Telegram
     /// 5. Проверяем, что auth_date не старше 24 часов
     pub fn verify(&self, bot_token: &str) -> Result<(), String> {
-        // 1. Создаем data_check_string из всех полей кроме hash
+        // 1. Проверяем, что auth_date не слишком старый
+        // По стандарту рекомендуется не более 86400 секунд (24 часа)
+        // Делаем это первым, так как это быстрая проверка без криптографии
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+
+        let age = current_time - self.auth_date;
+        if age > 86400 {
+            return Err(format!(
+                "Auth data is too old. Age: {} seconds (max: 86400)",
+                age
+            ));
+        }
+
+        if age < 0 {
+            return Err(format!(
+                "Auth date is in the future. This should not happen. Diff: {} seconds",
+                age.abs()
+            ));
+        }
+
+        // 2. Создаем data_check_string из всех полей кроме hash
         let mut fields: Vec<(String, String)> = Vec::new();
 
         // Добавляем обязательные поля
@@ -51,59 +74,37 @@ impl TelegramAuthData {
             fields.push(("photo_url".to_string(), photo_url.clone()));
         }
 
-        // 2. Сортируем поля по ключу (важно для правильной проверки!)
+        // 3. Сортируем поля по ключу (важно для правильной проверки!)
         fields.sort_by(|a, b| a.0.cmp(&b.0));
 
-        // 3. Создаем data_check_string (формат: key=value\nkey=value\n...)
+        // 4. Создаем data_check_string (формат: key=value\nkey=value\n...)
         let data_check_string = fields
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect::<Vec<_>>()
             .join("\n");
 
-        // 4. Вычисляем secret_key = SHA256(bot_token)
+        // 5. Вычисляем secret_key = SHA256(bot_token)
         let secret_key = {
             let mut hasher = Sha256::new();
             hasher.update(bot_token.as_bytes());
             hasher.finalize()
         };
 
-        // 5. Вычисляем HMAC-SHA256(data_check_string, secret_key)
+        // 6. Вычисляем HMAC-SHA256(data_check_string, secret_key)
         let mut mac = HmacSha256::new_from_slice(&secret_key)
             .map_err(|e| format!("Failed to create HMAC: {}", e))?;
         mac.update(data_check_string.as_bytes());
         let result = mac.finalize();
         let code_bytes = result.into_bytes();
 
-        // 6. Преобразуем в hex и сравниваем с hash от Telegram
+        // 7. Преобразуем в hex и сравниваем с hash от Telegram
         let expected_hash = hex::encode(code_bytes);
 
         if expected_hash != self.hash {
             return Err(format!(
                 "Hash verification failed. Expected: {}, Got: {}",
                 expected_hash, self.hash
-            ));
-        }
-
-        // 7. Проверяем, что auth_date не слишком старый
-        // По стандарту рекомендуется не более 86400 секунд (24 часа)
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64;
-
-        let age = current_time - self.auth_date;
-        if age > 86400 {
-            return Err(format!(
-                "Auth data is too old. Age: {} seconds (max: 86400)",
-                age
-            ));
-        }
-
-        if age < 0 {
-            return Err(format!(
-                "Auth date is in the future. This should not happen. Diff: {} seconds",
-                age.abs()
             ));
         }
 
