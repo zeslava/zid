@@ -397,6 +397,7 @@ pub async fn login_form_submit(
                         <html>
                         <head>
                             <title>Redirecting</title>
+                            <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                             <meta http-equiv="refresh" content="0;url={}" />
                             <style>
                                 body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }}
@@ -430,6 +431,7 @@ pub async fn login_form_submit(
                 <html>
                 <head>
                     <title>Login Successful</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <style>
                         body {{ font-family: Arial, sans-serif; max-width: 500px; margin: 100px auto; padding: 20px; }}
                         .success {{ padding: 20px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; text-align: center; }}
@@ -466,6 +468,7 @@ pub async fn login_form_submit(
                 <html>
                 <head>
                     <title>Unauthorized</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <style>
                         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
                         .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center; }
@@ -494,6 +497,7 @@ pub async fn login_form_submit(
                 <html>
                 <head>
                     <title>Unauthorized</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <style>
                         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
                         .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center; }
@@ -538,6 +542,7 @@ pub async fn continue_as_form_submit(
                 <html>
                 <head>
                     <title>Unauthorized</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                 </head>
                 <body>
                     <h2>Unauthorized</h2>
@@ -581,6 +586,7 @@ pub async fn continue_as_form_submit(
                     <html>
                     <head>
                         <title>Redirecting</title>
+                        <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                         <meta http-equiv="refresh" content="0;url={}" />
                     </head>
                     <body>
@@ -606,6 +612,7 @@ pub async fn continue_as_form_submit(
                 <html>
                 <head>
                     <title>Ticket Issued</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <style>
                         body {{ font-family: Arial, sans-serif; max-width: 500px; margin: 100px auto; padding: 20px; }}
                         .success {{ padding: 20px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 4px; text-align: center; }}
@@ -638,6 +645,7 @@ pub async fn continue_as_form_submit(
                 <html>
                 <head>
                     <title>Unauthorized</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                 </head>
                 <body>
                     <h2>Unauthorized</h2>
@@ -653,6 +661,7 @@ pub async fn continue_as_form_submit(
                 <html>
                 <head>
                     <title>Unauthorized</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                 </head>
                 <body>
                     <h2>Unauthorized</h2>
@@ -779,6 +788,7 @@ pub async fn register_form_submit(
             <html>
             <head>
                 <title>Registration Failed</title>
+                <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                 <style>
                     body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
                     .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
@@ -810,6 +820,7 @@ pub async fn register_form_submit(
                 <html>
                 <head>
                     <title>Registration Successful</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <meta http-equiv="refresh" content="2;url=/" />
                     <style>
                         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
@@ -835,6 +846,7 @@ pub async fn register_form_submit(
                 <html>
                 <head>
                     <title>Registration Failed</title>
+                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                     <style>
                         body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; text-align: center; }
                         .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; }
