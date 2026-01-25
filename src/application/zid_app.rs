@@ -45,17 +45,27 @@ impl ZidService for ZidApp {
         return_to: Option<&str>,
     ) -> Result<Ticket, Error> {
         // validate return_to if provided
-        if let Some(url) = return_to {
-            if !url.is_empty() && !validate_return_to(url) {
-                return Err(Error::InternalError("Invalid return_to URL".to_string()));
-            }
+        if let Some(url) = return_to
+            && !url.is_empty()
+            && !validate_return_to(url)
+        {
+            return Err(Error::InternalError("Invalid return_to URL".to_string()));
         }
 
         // find user
-        let user = self.users.get_by_username(username)?;
+        let user = self.users.get_by_username(username).map_err(|e| {
+            eprintln!("❌ Failed to get user '{}': {:?}", username, e);
+            e
+        })?;
 
         // check password
-        self.credentials.validate(username, password)?;
+        self.credentials.validate(username, password).map_err(|e| {
+            eprintln!(
+                "❌ Failed to validate credentials for '{}': {:?}",
+                username, e
+            );
+            e
+        })?;
 
         // create session (ZID SSO): 7-day expiry
         let session_id = uuid::Uuid::new_v4();
@@ -91,10 +101,11 @@ impl ZidService for ZidApp {
 
     fn continue_as(&self, session_id: &str, return_to: Option<&str>) -> Result<Ticket, Error> {
         // validate return_to if provided
-        if let Some(url) = return_to {
-            if !url.is_empty() && !validate_return_to(url) {
-                return Err(Error::InternalError("Invalid return_to URL".to_string()));
-            }
+        if let Some(url) = return_to
+            && !url.is_empty()
+            && !validate_return_to(url)
+        {
+            return Err(Error::InternalError("Invalid return_to URL".to_string()));
         }
 
         // 1) Ensure session exists and isn't expired
@@ -138,10 +149,11 @@ impl ZidService for ZidApp {
         return_to: Option<&str>,
     ) -> Result<Ticket, Error> {
         // Validate return_to URL if provided
-        if let Some(url) = return_to {
-            if !url.is_empty() && !validate_return_to(url) {
-                return Err(Error::InternalError("Invalid return_to URL".to_string()));
-            }
+        if let Some(url) = return_to
+            && !url.is_empty()
+            && !validate_return_to(url)
+        {
+            return Err(Error::InternalError("Invalid return_to URL".to_string()));
         }
 
         // Проверяем, существует ли пользователь с таким Telegram ID
@@ -312,8 +324,7 @@ pub fn is_trusted_domain(host: &str) -> bool {
     trusted_domains.iter().any(|pattern| {
         if !pattern.contains('*') {
             host == pattern
-        } else if pattern.starts_with("*.") {
-            let suffix = &pattern[2..];
+        } else if let Some(suffix) = pattern.strip_prefix("*.") {
             host.ends_with(suffix) || host == suffix
         } else {
             false

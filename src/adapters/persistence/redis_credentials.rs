@@ -18,51 +18,87 @@ impl RedisCredentialsRepository {
 
 impl CredentialsRepository for RedisCredentialsRepository {
     fn validate(&self, username: &str, password: &str) -> Result<(), Error> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        let mut conn = self.client.get_connection().map_err(|e| {
+            eprintln!(
+                "❌ Failed to get Redis connection for credentials validation: {}",
+                e
+            );
+            Error::RepositoryError(e.to_string())
+        })?;
         let key = format!("credentials:username:{}", username);
 
         // Get stored password hash
-        let stored_hash: Option<String> = conn
-            .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        let stored_hash: Option<String> = conn.get(&key).map_err(|e| {
+            eprintln!(
+                "❌ Redis error when fetching credentials for '{}': {}",
+                username, e
+            );
+            Error::RepositoryError(e.to_string())
+        })?;
 
         match stored_hash {
             Some(hash) => {
+                println!(
+                    "🔍 Found credentials in Redis for user '{}', hash length: {}",
+                    username,
+                    hash.len()
+                );
                 // Parse the stored hash
                 let parsed_hash = PasswordHash::new(&hash).map_err(|e| {
+                    eprintln!("❌ Failed to parse password hash for '{}': {}", username, e);
                     Error::RepositoryError(format!("Failed to parse password hash: {}", e))
                 })?;
+
+                println!("🔍 Password hash parsed successfully for '{}'", username);
 
                 // Verify password against hash using Argon2
                 let argon2 = Argon2::default();
                 argon2
                     .verify_password(password.as_bytes(), &parsed_hash)
-                    .map_err(|_| Error::InvalidCredentials)?;
+                    .map_err(|e| {
+                        eprintln!(
+                            "❌ Password verification failed for '{}': {:?}",
+                            username, e
+                        );
+                        Error::InvalidCredentials
+                    })?;
 
+                println!("✅ Password validated successfully for '{}'", username);
                 Ok(())
             }
-            None => Err(Error::UserNotFound),
+            None => {
+                eprintln!("❌ Credentials not found in Redis for user '{}'", username);
+                Err(Error::UserNotFound)
+            }
         }
     }
 
     fn create_user(&self, username: &str, password: &str) -> Result<(), Error> {
-        let mut conn = self
-            .client
-            .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        let mut conn = self.client.get_connection().map_err(|e| {
+            eprintln!(
+                "❌ Failed to get Redis connection for creating credentials: {}",
+                e
+            );
+            Error::RepositoryError(e.to_string())
+        })?;
         let key = format!("credentials:username:{}", username);
 
         // Hash the password
         let password_hash = hash_password(password)?;
 
         // Store in Redis
-        let _: () = conn
-            .set(&key, &password_hash)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        let _: () = conn.set(&key, &password_hash).map_err(|e| {
+            eprintln!(
+                "❌ Failed to set credentials in Redis for '{}': {}",
+                username, e
+            );
+            Error::RepositoryError(e.to_string())
+        })?;
 
+        println!(
+            "✅ Credentials created/updated in Redis for user '{}'",
+            username
+        );
         Ok(())
     }
 }

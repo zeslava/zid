@@ -129,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Initialize credentials repository based on configuration
+    println!("🔧 Credentials storage backend: {}", credentials_storage);
     let creds_repository: Arc<dyn CredentialsRepository> = if credentials_storage.to_lowercase()
         == "postgres"
     {
