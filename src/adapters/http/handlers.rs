@@ -87,6 +87,7 @@ pub async fn login_form(
                     <html>
                     <head>
                         <title>ZID Login</title>
+                        <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
                         <style>
                             body {{ font-family: Arial, sans-serif; max-width: 500px; margin: 100px auto; padding: 20px; }}
                             .card {{ padding: 20px; border: 1px solid #ddd; border-radius: 8px; }}
@@ -161,6 +162,7 @@ pub async fn login_form(
         <html>
         <head>
             <title>ZID Login</title>
+            <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
             <style>
                 body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }}
                 form {{ display: flex; flex-direction: column; gap: 10px; }}
@@ -288,6 +290,7 @@ pub async fn register_form(State(_state): State<RouterState>) -> impl IntoRespon
         <html>
         <head>
             <title>ZID Registration</title>
+            <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
             <style>
                 body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
                 form { display: flex; flex-direction: column; gap: 10px; }
