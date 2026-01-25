@@ -1,6 +1,6 @@
 version: "3"
 
-# Minimal Taskfile: only commands for running the stack.
+# Taskfile for local development and Docker stack management.
 # Loads environment variables from `.env` (and optionally `.env.local`) into Task.
 dotenv:
   - .env
@@ -16,43 +16,25 @@ tasks:
       - task -l
 
   build:
-    desc: Build containers
+    desc: Build Rust application locally
     cmds:
-      - "{{.DC}} build"
+      - cargo build --release
+
+  run:
+    desc: Run Rust application locally
+    deps: [build]
+    cmds:
+      - ./target/release/zid
 
   up:
-    desc: Start services (detached)
+    desc: Start Docker services (detached)
     cmds:
       - "{{.DC}} up -d"
       - "{{.DC}} ps"
       - echo ""
-      - 'echo "Application: http://localhost:5555"'
-
-  dev:
-    desc: Start services in foreground
-    cmds:
-      - "{{.DC}} up"
-
-  start:
-    desc: Build + start services (detached)
-    deps: [build, up]
+      - 'echo "Services started"'
 
   down:
-    desc: Stop services
+    desc: Stop Docker services
     cmds:
       - "{{.DC}} down"
-
-  restart:
-    desc: Restart services
-    cmds:
-      - "{{.DC}} restart"
-
-  logs:
-    desc: Tail logs for all services
-    cmds:
-      - "{{.DC}} logs -f"
-
-  logs-app:
-    desc: Tail logs for app only
-    cmds:
-      - "{{.DC}} logs -f zid-app"
