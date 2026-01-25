@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Black rounded square background -->
+  <rect width="256" height="256" rx="48" fill="#000000"/>
+  
+  <!-- Shield outline -->
+  <path d="M 128 35 L 200 60 L 200 130 Q 200 180 128 220 Q 56 180 56 130 L 56 60 Z" 
+        fill="none" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>
+  
+  <!-- Letter Z as single path -->
+  <path d="M 100 90 L 156 90 L 156 100 L 110 150 L 156 150 L 156 160 L 100 160 L 100 150 L 146 100 L 100 100 Z" 
+        fill="#ffffff"/>
+</svg>
