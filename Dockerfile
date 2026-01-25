@@ -16,8 +16,9 @@ RUN mkdir src && \
     cargo build --release && \
     rm -rf src
 
-# Copy source code
+# Copy source code and static assets
 COPY src ./src
+COPY static ./static
 
 # Build the actual application
 RUN touch src/main.rs && \

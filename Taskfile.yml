@@ -23,6 +23,7 @@ tasks:
   run:
     desc: Run Rust application locally
     deps: [build]
+    dir: .
     cmds:
       - ./target/release/zid
 
