@@ -42,7 +42,7 @@ tasks:
   migrate:
     desc: Run database migrations (sqlx-cli)
     cmds:
-      - sqlx migrate run
+      - sqlx migrate run --database-url "${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-zid}}"
 
   migrate-add:
     desc: Add new migration (pass NAME, e.g. task migrate-add NAME=create_users)
@@ -52,4 +52,4 @@ tasks:
   migrate-revert:
     desc: Revert last migration (sqlx-cli)
     cmds:
-      - sqlx migrate revert
+      - sqlx migrate revert --database-url "${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-zid}}"
