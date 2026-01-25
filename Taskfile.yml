@@ -38,3 +38,18 @@ tasks:
     desc: Stop Docker services
     cmds:
       - "{{.DC}} down"
+
+  migrate:
+    desc: Run database migrations (sqlx-cli)
+    cmds:
+      - sqlx migrate run
+
+  migrate-add:
+    desc: Add new migration (pass NAME, e.g. task migrate-add NAME=create_users)
+    cmds:
+      - 'sqlx migrate add "{{.NAME}}"'
+
+  migrate-revert:
+    desc: Revert last migration (sqlx-cli)
+    cmds:
+      - sqlx migrate revert
