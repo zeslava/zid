@@ -55,6 +55,12 @@ tasks:
     cmds:
       - sqlx migrate revert --database-url "${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-zid}}"
 
+  install-freebsd:
+    desc: Установка ZID на FreeBSD (скрипт scripts/setup-freebsd.sh; для установки нужен sudo task install-freebsd)
+    deps: [build]
+    cmds:
+      - ./scripts/setup-freebsd.sh target/release/zid
+
   oidc-gen-keys:
     desc: Сгенерировать PEM-ключи для OIDC JWT (private + public)
     cmds:
