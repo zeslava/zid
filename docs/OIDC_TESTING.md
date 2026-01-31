@@ -21,7 +21,7 @@ openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
 Скопировать пример и при необходимости отредактировать:
 
 ```bash
-cp oidc_clients.example.toml oidc_clients.toml
+cp oidc_clients.example.yaml oidc_clients.yaml
 ```
 
 Для локального теста с `redirect_uri` на этот же сервер можно указать:
@@ -46,7 +46,7 @@ grant_types = ["client_credentials"]
 ```bash
 export OIDC_ENABLED=true
 export OIDC_ISSUER=http://localhost:5555
-export OIDC_CLIENTS_FILE=oidc_clients.toml
+export OIDC_CLIENTS_FILE=oidc_clients.yaml
 export OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
 export OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
 # Остальные переменные — по .env или дефолтам
@@ -57,7 +57,7 @@ cargo run
 
 ```bash
 OIDC_ENABLED=true OIDC_ISSUER=http://localhost:5555 \
-  OIDC_CLIENTS_FILE=oidc_clients.toml \
+  OIDC_CLIENTS_FILE=oidc_clients.yaml \
   OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem \
   OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem \
   cargo run
@@ -135,7 +135,7 @@ curl -s "$BASE/oauth/userinfo?access_token=$TOKEN" | jq .
 1. Зарегистрировать пользователя (если ещё нет):  
    `POST /register` с формой или через существующий `scripts/test.sh`.
 
-2. Открыть в браузере URL авторизации (подставьте свой `redirect_uri` из `oidc_clients.toml`):
+2. Открыть в браузере URL авторизации (подставьте свой `redirect_uri` из `oidc_clients.yaml`):
 
    ```
    http://localhost:5555/oauth/authorize?response_type=code&client_id=web-app&redirect_uri=http://localhost:5555/callback&scope=openid%20profile%20email&state=random123

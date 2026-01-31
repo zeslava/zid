@@ -71,7 +71,7 @@ sudo service zid start
 /usr/local/etc/rc.d/zid            # RC.D скрипт (управление сервисом)
 /usr/local/etc/zid/                # Каталог конфигурации ZID
   zid.conf                         # Файл переменных окружения (zid_env_file)
-  oidc_clients.yaml                # OIDC: клиенты (если включён OIDC)
+  oidc_clients.yaml                 # OIDC: клиенты (если включён OIDC)
   oidc_jwt_private.pem             # OIDC: ключ подписи JWT
   oidc_jwt_public.pem              # OIDC: публичный ключ (JWKS)
 /var/lib/zid/                      # Домашняя директория пользователя zid

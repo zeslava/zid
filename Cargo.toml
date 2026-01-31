@@ -7,16 +7,17 @@ edition = "2024"
 anyhow = "1.0.100"
 argon2 = "0.5"
 axum = { version = "0.8.7", features = ["macros"] }
-axum-extra = { version = "0.10", features = ["typed-header"] }
 postgres = "0.19"
 r2d2 = "0.8"
 r2d2_postgres = "0.18"
 rand_core = { version = "0.6", features = ["getrandom"] }
 redis = "0.27"
-rust-embed = { version = "8", features = ["compression"] }
+# Без compression: zstd-sys ломает сборку под aarch64-unknown-freebsd (cc-rs, Operation not permitted)
+rust-embed = { version = "8" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-tokio = { version = "1.48.0", features = ["full"] }
+# Минимальный набор фич: main, spawn_blocking, TcpListener; без full — быстрее сборка и меньше зависимостей
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "net", "sync", "macros", "time"] }
 url = "2.5.7"
 urlencoding = "2"
 uuid = { version = "1.19.0", features = ["v4"] }
@@ -26,7 +27,12 @@ sha2 = "0.10"
 hmac = "0.12"
 # OIDC/OAuth 2.0
 jsonwebtoken = "9"
-toml = "0.8"
 serde_yaml = "0.9"
 base64 = "0.22"
 rsa = { version = "0.9", features = ["pem"] }
+
+[profile.release]
+# Меньший бинарник
+lto = true
+codegen-units = 1
+strip = true

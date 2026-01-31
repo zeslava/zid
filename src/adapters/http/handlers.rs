@@ -1166,20 +1166,19 @@ pub async fn oidc_token(
 /// GET /oauth/userinfo — токен в заголовке Authorization: Bearer или в query access_token (access_token или id_token)
 pub async fn oidc_userinfo(
     State(state): State<RouterState>,
-    auth: Option<
-        axum_extra::TypedHeader<
-            axum_extra::headers::Authorization<axum_extra::headers::authorization::Bearer>,
-        >,
-    >,
+    headers: HeaderMap,
     axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(oidc) = state.oidc.as_ref() else {
         return (StatusCode::NOT_FOUND, "OIDC disabled").into_response();
     };
-    let token = auth
-        .as_ref()
-        .map(|a| a.token().to_string())
-        .or_else(|| query.get("access_token").cloned());
+    let bearer = headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(str::trim)
+        .map(String::from);
+    let token = bearer.or_else(|| query.get("access_token").cloned());
     let Some(token) = token else {
         return (
             StatusCode::UNAUTHORIZED,

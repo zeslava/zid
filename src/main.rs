@@ -206,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
         let oidc_issuer = std::env::var("OIDC_ISSUER")
             .unwrap_or_else(|_| format!("http://{}:{}", issuer_host, server_port));
         let clients_file =
-            std::env::var("OIDC_CLIENTS_FILE").unwrap_or_else(|_| "oidc_clients.toml".to_string());
+            std::env::var("OIDC_CLIENTS_FILE").unwrap_or_else(|_| "oidc_clients.yaml".to_string());
         let private_key_path = std::env::var("OIDC_JWT_PRIVATE_KEY")
             .unwrap_or_else(|_| "oidc_jwt_private.pem".to_string());
         let public_key_path = std::env::var("OIDC_JWT_PUBLIC_KEY")

@@ -158,7 +158,7 @@ docker compose ps               # Статус сервисов
 | `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure флаг для cookie |
 | `OIDC_ENABLED` | `true` (default), `false` | Включить OIDC/OAuth 2.0; при отсутствии конфига/ключей — запуск без OIDC |
 | `OIDC_ISSUER` | URL | Базовый URL issuer (discovery, JWT) |
-| `OIDC_CLIENTS_FILE` | путь | Файл клиентов в формате TOML (`.toml`) или YAML (`.yaml`/`.yml`); формат по расширению |
+| `OIDC_CLIENTS_FILE` | путь | Файл клиентов в формате YAML (`.yaml` / `.yml`) |
 | `OIDC_JWT_PRIVATE_KEY` | путь к PEM | Приватный ключ для подписи JWT |
 | `OIDC_JWT_PUBLIC_KEY` | путь к PEM | Публичный ключ (JWKS, верификация) |
 
@@ -194,7 +194,7 @@ docker compose ps               # Статус сервисов
 | GET | `/oauth/userinfo` | UserInfo: Bearer **access_token** (рекомендуется) или **id_token**; токен в заголовке `Authorization: Bearer` или в query `access_token`. Claims: sub, name, preferred_username, email (при scope profile/email). |
 | GET | `/oauth/jwks` | JWKS |
 
-Клиенты задаются в TOML или YAML (OIDC_CLIENTS_FILE; формат по расширению). Поддерживаются Authorization Code (+ PKCE) и Client Credentials.
+Клиенты задаются в YAML (OIDC_CLIENTS_FILE, расширение .yaml или .yml). Поддерживаются Authorization Code (+ PKCE) и Client Credentials.
 
 ## Миграции
 

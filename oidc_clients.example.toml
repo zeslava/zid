@@ -1,4 +1,4 @@
-# Пример конфигурации OAuth-клиентов (скопировать в oidc_clients.toml)
+# Устарело: поддерживается только YAML. Используйте oidc_clients.example.yaml и oidc_clients.yaml
 # При OIDC_ENABLED=true путь задаётся через OIDC_CLIENTS_FILE
 
 [[clients]]

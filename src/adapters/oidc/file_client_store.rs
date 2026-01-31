@@ -1,5 +1,4 @@
-// Загрузка OAuth-клиентов из конфиг-файла (TOML или YAML, in-memory cache).
-// Формат определяется по расширению файла в from_path (.toml / .yaml / .yml).
+// Загрузка OAuth-клиентов из конфиг-файла YAML (in-memory cache).
 
 use std::collections::HashMap;
 use std::fs;
@@ -7,7 +6,7 @@ use std::path::Path;
 
 use crate::ports::{client_store::ClientStore, entities::OAuthClient, error::Error};
 
-/// Хранилище клиентов из конфиг-файла (кэш в памяти). Поддерживаются форматы TOML и YAML.
+/// Хранилище клиентов из конфиг-файла (кэш в памяти). Формат: YAML (.yaml / .yml).
 pub struct FileClientStore {
     clients: HashMap<String, OAuthClient>,
 }
@@ -28,32 +27,24 @@ struct ClientEntry {
 }
 
 impl FileClientStore {
-    /// Загрузить клиентов из файла. Формат определяется по расширению: .toml, .yaml, .yml.
+    /// Загрузить клиентов из файла YAML (.yaml / .yml).
     /// Валидирует: для authorization_code обязательны redirect_uris.
     pub fn from_path(path: &Path) -> Result<Self, Error> {
         let content = fs::read_to_string(path)
             .map_err(|e| Error::Internal(format!("OIDC clients file: {e}")))?;
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|s| s.to_lowercase());
-        match ext.as_deref() {
-            Some("toml") => Self::from_str(&content),
-            Some("yaml") | Some("yml") => {
-                let file: ClientsFile = serde_yaml::from_str(&content)
-                    .map_err(|e| Error::Internal(format!("OIDC clients YAML: {e}")))?;
-                Self::build(file)
-            }
-            _ => Err(Error::InvalidRequest(
-                "OIDC clients file: use .toml or .yaml/.yml".to_string(),
-            )),
+        let ext = path.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase());
+        if ext.as_deref() != Some("yaml") && ext.as_deref() != Some("yml") {
+            return Err(Error::InvalidRequest(
+                "OIDC clients file: use .yaml or .yml".to_string(),
+            ));
         }
+        Self::from_str(&content)
     }
 
-    /// Загрузить из строки в формате TOML (для тестов).
+    /// Загрузить из строки в формате YAML (для тестов).
     pub fn from_str(content: &str) -> Result<Self, Error> {
-        let file: ClientsFile = toml::from_str(content)
-            .map_err(|e| Error::Internal(format!("OIDC clients TOML: {e}")))?;
+        let file: ClientsFile = serde_yaml::from_str(content)
+            .map_err(|e| Error::Internal(format!("OIDC clients YAML: {e}")))?;
         Self::build(file)
     }
 
