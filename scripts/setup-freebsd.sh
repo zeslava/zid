@@ -110,9 +110,9 @@ if [ ! -f "$ENV_FILE" ]; then
 # ZID Authentication Service Configuration
 # FreeBSD rc.d environment file
 
-# Адрес и порт
-ZID_HOST="127.0.0.1"
-ZID_PORT="3000"
+# Адрес и порт сервера
+SERVER_HOST="0.0.0.0"
+SERVER_PORT="5555"
 
 # Хранилища
 SESSION_STORAGE="redis"
@@ -120,7 +120,11 @@ TICKET_STORAGE="redis"
 CREDENTIALS_STORAGE="postgres"
 
 # База данных PostgreSQL
-DATABASE_URL="postgresql://zid:zid@localhost/zid"
+POSTGRES_HOST="localhost"
+POSTGRES_PORT="5432"
+POSTGRES_DB="zid"
+POSTGRES_USER="zid"
+POSTGRES_PASSWORD="zid"
 
 # Redis
 REDIS_URL="redis://localhost:6379"

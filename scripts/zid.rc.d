@@ -12,7 +12,7 @@
 #   zid_enable="YES"
 #   zid_user="zid"          # (опционально, по умолчанию: zid)
 #   zid_group="zid"         # (опционально, по умолчанию: zid)
-#   zid_config="/etc/zid.conf"  # (опционально, по умолчанию: /etc/zid.conf)
+#   zid_config="/usr/local/etc/zid.conf"  # (опционально, по умолчанию: /usr/local/etc/zid.conf)
 #   zid_logfile="/var/log/zid/zid.log"  # (опционально)
 #   zid_pidfile="/var/run/zid/zid.pid"  # (опционально)
 #
@@ -26,7 +26,7 @@ rcvar=zid_enable
 : ${zid_enable:=NO}
 : ${zid_user:=zid}
 : ${zid_group:=zid}
-: ${zid_config:=/etc/zid.conf}
+: ${zid_config:=/usr/local/etc/zid.conf}
 : ${zid_logfile:=/var/log/zid/zid.log}
 : ${zid_pidfile:=/var/run/zid/zid.pid}
 
