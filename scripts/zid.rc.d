@@ -9,12 +9,15 @@
 # FreeBSD rc.d service script
 #
 # Добавьте в /etc/rc.conf для автозапуска:
-#   zid_enable="YES"
-#   zid_user="zid"          # (опционально, по умолчанию: zid)
-#   zid_group="zid"         # (опционально, по умолчанию: zid)
-#   zid_config="/usr/local/etc/zid.conf"  # (опционально, по умолчанию: /usr/local/etc/zid.conf)
-#   zid_logfile="/var/log/zid/zid.log"  # (опционально)
-#   zid_pidfile="/var/run/zid/zid.pid"  # (опционально)
+#
+# zid_enable (bool):		Включить сервис. По умолчанию "NO".
+# zid_user (str):		Пользователь для запуска. По умолчанию "zid".
+# zid_group (str):		Группа. По умолчанию "zid".
+# zid_env_file (str):		Файл с переменными окружения (см. rc.subr(8)).
+#				По умолчанию "/usr/local/etc/zid.conf".
+# zid_config (str):		Устаревший синоним zid_env_file.
+# zid_logfile (str):		Файл логов. По умолчанию "/var/log/zid/zid.log".
+# zid_pidfile (str):		PID-файл. По умолчанию "/var/run/zid/zid.pid".
 #
 
 . /etc/rc.subr
@@ -22,45 +25,39 @@
 name="zid"
 rcvar=zid_enable
 
-# Пути по умолчанию
+load_rc_config "$name"
+
 : ${zid_enable:=NO}
 : ${zid_user:=zid}
 : ${zid_group:=zid}
 : ${zid_config:=/usr/local/etc/zid.conf}
+: ${zid_env_file:=$zid_config}
 : ${zid_logfile:=/var/log/zid/zid.log}
 : ${zid_pidfile:=/var/run/zid/zid.pid}
 
 command="/usr/local/bin/${name}"
 pidfile="${zid_pidfile}"
 
-# Проверка наличия конфиг-файла
-check_config()
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+restart_cmd="${name}_restart"
+
+# Проверка наличия файла с переменными окружения
+check_env_file()
 {
-	if [ ! -f "$zid_config" ]; then
-		warn "Config file not found: $zid_config"
+	if [ ! -f "$zid_env_file" ]; then
+		warn "Env file not found: $zid_env_file"
 		return 1
 	fi
 	return 0
 }
 
-# Загрузка переменных окружения
-load_env()
-{
-	if [ -f "$zid_config" ]; then
-		# Источник конфига (только переменные)
-		set -a
-		. "$zid_config"
-		set +a
-	fi
-}
-
-# Запуск сервиса
+# Запуск сервиса (daemon без -p/-o, чтобы не блокировать: ZID не делает daemonize)
 zid_start()
 {
 	echo "Starting ZID Authentication Service..."
 
-	check_config || return 1
-	load_env
+	check_env_file || return 1
 
 	# Создание директории для PID файла если не существует
 	if [ ! -d "$(dirname "$pidfile")" ]; then
@@ -74,17 +71,14 @@ zid_start()
 		chown "$zid_user:$zid_group" "$(dirname "$zid_logfile")"
 	fi
 
-	# Запуск приложения
-	/usr/sbin/daemon \
-		-p "$pidfile" \
-		-u "$zid_user" \
-		-o "$zid_logfile" \
-		-S \
-		"$command"
+	# Запуск без -p/-o: daemon сразу возвращает управление.
+	# PID и вывод в лог делаем в обёртке.
+	/usr/sbin/daemon -u "$zid_user" sh -c 'echo $$ > "'"$pidfile"'"; exec '"$command"' >> "'"$zid_logfile"'" 2>&1'
 
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then
-		echo "ZID started successfully (PID: $(cat "$pidfile" 2>/dev/null))"
+		sleep 1
+		[ -f "$pidfile" ] && echo "ZID started successfully (PID: $(cat "$pidfile"))"
 	fi
 	return $RETVAL
 }
@@ -147,22 +141,22 @@ zid_status()
 	fi
 }
 
-# Проверка конфигурации
-zid_config()
+# Показать конфигурацию
+zid_showconfig()
 {
 	echo "ZID Configuration:"
-	echo "  Config file: $zid_config"
+	echo "  Env file: $zid_env_file"
 	echo "  User: $zid_user"
 	echo "  Group: $zid_group"
 	echo "  Log file: $zid_logfile"
 	echo "  PID file: $pidfile"
 	echo ""
-	
-	if [ -f "$zid_config" ]; then
+
+	if [ -f "$zid_env_file" ]; then
 		echo "Environment variables:"
-		grep -v '^#' "$zid_config" | grep -v '^$' | sed 's/^/  /'
+		grep -v '^#' "$zid_env_file" | grep -v '^$' | sed 's/^/  /'
 	else
-		echo "  Config file not found!"
+		echo "  Env file not found!"
 	fi
 }
 
@@ -177,12 +171,9 @@ zid_logs()
 	fi
 }
 
-# Установка пользовательских команд
 extra_commands="status config logs"
-zid_config_cmd="zid_config"
+zid_config_cmd="zid_showconfig"
 zid_logs_cmd="zid_logs"
 zid_status_cmd="zid_status"
 
-# Запуск основной функции rc.subr
-load_rc_config "$name"
 run_rc_command "$1"

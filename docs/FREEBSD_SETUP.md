@@ -32,25 +32,17 @@ sudo sh ./scripts/setup-freebsd.sh ./target/release/zid
 
 ### 3. Конфигурация
 
-Отредактируйте конфиг-файл:
+Отредактируйте файл с переменными окружения (по умолчанию `/usr/local/etc/zid.conf`):
 
 ```bash
-sudo nano /etc/zid.conf
+sudo nano /usr/local/etc/zid.conf
 ```
 
-Убедитесь, что переменные окружения корректны:
-
-```bash
-# Пример конфига
-DATABASE_URL="postgresql://zid:zid@localhost/zid"
-REDIS_URL="redis://localhost:6379"
-ZID_HOST="127.0.0.1"
-ZID_PORT="3000"
-```
+Убедитесь, что переменные окружения корректны (приложение читает `SERVER_HOST`, `SERVER_PORT`, `POSTGRES_*`, `REDIS_URL` и др. — см. раздел ниже).
 
 ### 4. Запуск
 
-**Одноразовый запуск:**
+**Одноразовый запуск** (команда сразу возвращает управление, сервис работает в фоне):
 ```bash
 sudo service zid start
 ```
@@ -77,10 +69,10 @@ sudo service zid start
 ```
 /usr/local/bin/zid                 # Исполняемый файл сервиса
 /usr/local/etc/rc.d/zid            # RC.D скрипт (управление сервисом)
-/etc/zid.conf                       # Конфигурация окружения
-/var/lib/zid/                       # Домашняя директория пользователя zid
-/var/log/zid/zid.log              # Логи сервиса
-/var/run/zid/zid.pid              # PID файл
+/usr/local/etc/zid.conf           # Файл переменных окружения (zid_env_file)
+/var/lib/zid/                      # Домашняя директория пользователя zid
+/var/log/zid/zid.log               # Логи сервиса
+/var/run/zid/zid.pid               # PID файл
 ```
 
 ## Конфигурирование rc.conf
@@ -92,19 +84,21 @@ sudo service zid start
 zid_enable="YES"
 
 # Опциональные параметры (значения по умолчанию)
-zid_user="zid"                      # Unix-пользователь
-zid_group="zid"                     # Unix-группа
-zid_config="/etc/zid.conf"          # Файл конфигурации окружения
-zid_logfile="/var/log/zid/zid.log" # Файл логов
-zid_pidfile="/var/run/zid/zid.pid" # PID файл
+zid_user="zid"                           # Unix-пользователь
+zid_group="zid"                          # Unix-группа
+zid_env_file="/usr/local/etc/zid.conf"   # Файл переменных окружения (см. rc.subr(8))
+zid_logfile="/var/log/zid/zid.log"       # Файл логов
+zid_pidfile="/var/run/zid/zid.pid"       # PID файл
 ```
 
-## Переменные окружения (в /etc/zid.conf)
+Переменная `zid_env_file` — стандартная для rc.subr(8): rc.d автоматически подхватывает из неё переменные окружения при старте. Для совместимости поддерживается устаревший синоним `zid_config`.
+
+## Переменные окружения (в файле zid_env_file)
 
 ```bash
-# Адрес и порт
-ZID_HOST="127.0.0.1"
-ZID_PORT="3000"
+# Адрес и порт (приложение читает SERVER_HOST, SERVER_PORT)
+SERVER_HOST="0.0.0.0"
+SERVER_PORT="5555"
 
 # Хранилища (redis по умолчанию, postgres как альтернатива)
 SESSION_STORAGE="redis"
@@ -247,8 +241,8 @@ curl http://localhost:3000/health
 ### Ошибка подключения к БД
 
 ```bash
-# Проверьте DATABASE_URL в /etc/zid.conf
-sudo cat /etc/zid.conf | grep DATABASE_URL
+# Проверьте DATABASE_URL в файле zid_env_file (по умолчанию /usr/local/etc/zid.conf)
+sudo cat /usr/local/etc/zid.conf | grep DATABASE_URL
 
 # Тестируйте подключение
 psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
@@ -261,7 +255,7 @@ psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
 ```bash
 ls -la /var/log/zid/
 ls -la /var/run/zid/
-ls -la /etc/zid.conf
+ls -la /usr/local/etc/zid.conf
 ```
 
 Исправьте если нужно:
@@ -277,7 +271,7 @@ sudo chown zid:zid /var/run/zid/
 # Проверьте, что порт 3000 слушается
 sudo sockstat -l | grep 3000
 
-# Если есть конфликт, измените ZID_PORT в /etc/zid.conf
+# Если есть конфликт, измените SERVER_PORT в файле zid_env_file
 ```
 
 ## Обновление
@@ -320,7 +314,7 @@ sudo sed -i '' '/zid_enable/d' /etc/rc.conf
 # 3. Удалите файлы
 sudo rm /usr/local/bin/zid
 sudo rm /usr/local/etc/rc.d/zid
-sudo rm /etc/zid.conf
+sudo rm /usr/local/etc/zid.conf
 
 # 4. Удалите пользователя и директории (опционально)
 sudo pw userdel zid
