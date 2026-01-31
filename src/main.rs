@@ -38,6 +38,14 @@ async fn main() -> anyhow::Result<()> {
     let credentials_storage =
         std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());
 
+    // Логи конфигурации подключения (без паролей)
+    println!("🔌 PostgreSQL адрес: {}:{}/{}", pg_host, pg_port, pg_db);
+    println!("🔌 Redis адрес: {}", redis_url);
+    println!(
+        "🔧 Хранилища: sessions={}, tickets={}, credentials={}",
+        session_storage, ticket_storage, credentials_storage
+    );
+
     // Configure PostgreSQL connection pool (sync)
     let pg_connection_string = format!(
         "host={} port={} dbname={} user={} password={}",
