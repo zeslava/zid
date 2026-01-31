@@ -273,9 +273,13 @@ async fn main() -> anyhow::Result<()> {
     let router = routes::create_router(router_state);
 
     let bind_addr = format!("{}:{}", server_host, server_port);
-    let listener = tokio::net::TcpListener::bind(&bind_addr)
-        .await
-        .unwrap_or_else(|_| panic!("Failed to bind to {}", bind_addr));
+    let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("Ошибка: не удалось привязаться к {}: {}", bind_addr, e);
+            std::process::exit(1);
+        }
+    };
 
     println!();
     println!("🚀 ZID CAS Server listening on http://{}", bind_addr);
@@ -289,9 +293,10 @@ async fn main() -> anyhow::Result<()> {
     println!("   - Handlers: async with spawn_blocking for sync operations");
     println!();
 
-    axum::serve(listener, router)
-        .await
-        .expect("Failed to start server");
+    if let Err(e) = axum::serve(listener, router).await {
+        eprintln!("Ошибка: не удалось запустить сервер: {}", e);
+        std::process::exit(1);
+    }
 
     Ok(())
 }

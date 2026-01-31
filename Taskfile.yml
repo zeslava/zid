@@ -60,4 +60,4 @@ tasks:
     cmds:
       - openssl genrsa -out oidc_jwt_private.pem 2048
       - openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
-      - echo "Ключи сохранены: oidc_jwt_private.pem, oidc_jwt_public.pem"
+      - 'echo "Ключи сохранены: oidc_jwt_private.pem, oidc_jwt_public.pem"'
