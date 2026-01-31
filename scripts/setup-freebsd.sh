@@ -46,7 +46,7 @@ echo "👤 Создание пользователя и группы..."
 if pw groupshow "$ZID_GROUP" > /dev/null 2>&1; then
     echo "  Группа $ZID_GROUP уже существует"
 else
-    pw groupadd "$ZID_GROUP" -d 999
+    pw groupadd -n "$ZID_GROUP"
     echo "  Создана группа $ZID_GROUP"
 fi
 
