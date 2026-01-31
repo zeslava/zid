@@ -54,3 +54,10 @@ tasks:
     desc: Revert last migration (sqlx-cli)
     cmds:
       - sqlx migrate revert --database-url "${DATABASE_URL:-postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@${POSTGRES_HOST:-localhost}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-zid}}"
+
+  oidc-gen-keys:
+    desc: Сгенерировать PEM-ключи для OIDC JWT (private + public)
+    cmds:
+      - openssl genrsa -out oidc_jwt_private.pem 2048
+      - openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
+      - echo "Ключи сохранены: oidc_jwt_private.pem, oidc_jwt_public.pem"
