@@ -33,10 +33,10 @@ pub enum Error {
     UserAlreadyExists,
 
     /// Repository/storage error (database, cache, etc.)
-    RepositoryError(String),
+    Repository(String),
 
     /// Internal error (unexpected conditions)
-    InternalError(String),
+    Internal(String),
 }
 
 impl fmt::Display for Error {
@@ -57,8 +57,8 @@ impl fmt::Display for Error {
             }
             Error::SessionNotFound => write!(f, "Session not found"),
             Error::UserAlreadyExists => write!(f, "User already exists"),
-            Error::RepositoryError(msg) => write!(f, "Repository error: {}", msg),
-            Error::InternalError(msg) => write!(f, "Internal error: {}", msg),
+            Error::Repository(msg) => write!(f, "Repository error: {msg}"),
+            Error::Internal(msg) => write!(f, "Internal error: {msg}"),
         }
     }
 }
@@ -76,7 +76,7 @@ impl From<anyhow::Error> for Error {
         } else if err_str.contains("duplicate key") || err_str.contains("already exists") {
             Error::UserAlreadyExists
         } else {
-            Error::RepositoryError(err_str)
+            Error::Repository(err_str)
         }
     }
 }

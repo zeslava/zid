@@ -17,7 +17,7 @@ impl PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         conn.batch_execute(
             "CREATE TABLE IF NOT EXISTS tickets (
@@ -32,7 +32,7 @@ impl PostgresTicketRepository {
             CREATE INDEX IF NOT EXISTS idx_tickets_expires_at ON tickets(expires_at);
             CREATE INDEX IF NOT EXISTS idx_tickets_consumed ON tickets(consumed);",
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
@@ -43,7 +43,7 @@ impl PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -55,7 +55,7 @@ impl PostgresTicketRepository {
                 "DELETE FROM tickets WHERE expires_at > 0 AND expires_at < $1",
                 &[&current_time],
             )
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(rows_affected)
     }
@@ -66,12 +66,11 @@ impl PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let rows_affected = conn
             .execute("DELETE FROM tickets WHERE consumed = TRUE", &[])
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
+            .map_err(|e| Error::Repository(e.to_string()))?;
         Ok(rows_affected)
     }
 }
@@ -86,7 +85,7 @@ impl TicketRepository for PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let ticket_id = uuid::Uuid::new_v4().to_string();
         let expires_at_i64 = expires_at as i64;
@@ -95,7 +94,7 @@ impl TicketRepository for PostgresTicketRepository {
             "INSERT INTO tickets (id, session_id, service_url, expires_at, consumed) VALUES ($1, $2, $3, $4, FALSE)",
             &[&ticket_id, &session_id, &service_url, &expires_at_i64],
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(Ticket {
             id: ticket_id,
@@ -110,7 +109,7 @@ impl TicketRepository for PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let row = conn
             .query_one(
@@ -123,7 +122,7 @@ impl TicketRepository for PostgresTicketRepository {
                 {
                     Error::TicketNotFound
                 } else {
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -154,12 +153,11 @@ impl TicketRepository for PostgresTicketRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let _rows_affected = conn
             .execute("DELETE FROM tickets WHERE id = $1", &[&ticket_id])
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
-
+            .map_err(|e| Error::Repository(e.to_string()))?;
         // Note: We don't check rows_affected because deleting a non-existent ticket is OK
         // (idempotent operation)
 

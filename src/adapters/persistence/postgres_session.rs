@@ -17,7 +17,7 @@ impl PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         conn.batch_execute(
             "CREATE TABLE IF NOT EXISTS sessions (
@@ -29,7 +29,7 @@ impl PostgresSessionRepository {
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);",
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
@@ -41,7 +41,7 @@ impl PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -53,9 +53,9 @@ impl PostgresSessionRepository {
                 "DELETE FROM sessions WHERE expires_at > 0 AND expires_at < $1",
                 &[&current_time],
             )
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
-        Ok(rows_deleted as u64)
+        Ok(rows_deleted)
     }
 }
 
@@ -64,7 +64,7 @@ impl SessionRepository for PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let expires_at_i64 = expires_at as i64;
 
@@ -72,7 +72,7 @@ impl SessionRepository for PostgresSessionRepository {
             "INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)",
             &[&session_id, &user_id, &expires_at_i64],
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(session_id.to_string())
     }
@@ -81,7 +81,7 @@ impl SessionRepository for PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let row = conn
             .query_one(
@@ -94,7 +94,7 @@ impl SessionRepository for PostgresSessionRepository {
                 {
                     Error::SessionNotFound
                 } else {
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -128,7 +128,7 @@ impl SessionRepository for PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let new_expires_at_i64 = new_expires_at as i64;
 
@@ -137,7 +137,7 @@ impl SessionRepository for PostgresSessionRepository {
                 "UPDATE sessions SET expires_at = $2 WHERE id = $1",
                 &[&session_id, &new_expires_at_i64],
             )
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         if rows_affected == 0 {
             return Err(Error::SessionNotFound);
@@ -150,10 +150,10 @@ impl SessionRepository for PostgresSessionRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         conn.execute("DELETE FROM sessions WHERE id = $1", &[&session_token])
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }

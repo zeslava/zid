@@ -17,7 +17,7 @@ impl PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         conn.batch_execute(
             "CREATE TABLE IF NOT EXISTS users (
@@ -27,7 +27,7 @@ impl PostgresUserRepository {
             );
             CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);",
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
@@ -38,7 +38,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let row = conn
             .query_one(
@@ -52,7 +52,7 @@ impl UserRepository for PostgresUserRepository {
                 {
                     Error::UserNotFound
                 } else {
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -70,7 +70,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let row = conn
             .query_one(
@@ -84,7 +84,7 @@ impl UserRepository for PostgresUserRepository {
                 {
                     Error::UserNotFound
                 } else {
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -102,7 +102,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let user_id = uuid::Uuid::new_v4().to_string();
 
         conn.execute(
@@ -115,7 +115,7 @@ impl UserRepository for PostgresUserRepository {
             {
                 Error::UserAlreadyExists
             } else {
-                Error::RepositoryError(e.to_string())
+                Error::Repository(e.to_string())
             }
         })?;
 
@@ -126,7 +126,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let row = conn
             .query_one(
@@ -140,7 +140,7 @@ impl UserRepository for PostgresUserRepository {
                 {
                     Error::UserNotFound
                 } else {
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -164,7 +164,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let user_id = uuid::Uuid::new_v4().to_string();
 
@@ -197,7 +197,7 @@ impl UserRepository for PostgresUserRepository {
             {
                 Error::UserAlreadyExists
             } else {
-                Error::RepositoryError(e.to_string())
+                Error::Repository(e.to_string())
             }
         })?;
 
@@ -222,7 +222,7 @@ impl UserRepository for PostgresUserRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let rows_affected = conn
             .execute(
@@ -245,7 +245,7 @@ impl UserRepository for PostgresUserRepository {
                     &user_id,
                 ],
             )
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         if rows_affected == 0 {
             return Err(Error::UserNotFound);

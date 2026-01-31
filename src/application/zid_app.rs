@@ -49,7 +49,7 @@ impl ZidService for ZidApp {
             && !url.is_empty()
             && !validate_return_to(url)
         {
-            return Err(Error::InternalError("Invalid return_to URL".to_string()));
+            return Err(Error::Internal("Invalid return_to URL".to_string()));
         }
 
         // find user
@@ -105,7 +105,7 @@ impl ZidService for ZidApp {
             && !url.is_empty()
             && !validate_return_to(url)
         {
-            return Err(Error::InternalError("Invalid return_to URL".to_string()));
+            return Err(Error::Internal("Invalid return_to URL".to_string()));
         }
 
         // 1) Ensure session exists and isn't expired
@@ -153,7 +153,7 @@ impl ZidService for ZidApp {
             && !url.is_empty()
             && !validate_return_to(url)
         {
-            return Err(Error::InternalError("Invalid return_to URL".to_string()));
+            return Err(Error::Internal("Invalid return_to URL".to_string()));
         }
 
         // Проверяем, существует ли пользователь с таким Telegram ID

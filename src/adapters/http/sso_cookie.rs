@@ -136,11 +136,11 @@ pub fn build_set_cookie(session_id: &str, cfg: &SsoCookieConfig) -> String {
     out.push_str(cfg.path);
 
     // Domain (optional)
-    if let Some(domain) = &cfg.domain {
-        if !domain.is_empty() {
-            out.push_str("; Domain=");
-            out.push_str(domain);
-        }
+    if let Some(domain) = &cfg.domain
+        && !domain.is_empty()
+    {
+        out.push_str("; Domain=");
+        out.push_str(domain);
     }
 
     // Expiration (sliding: handlers should call this again when needed)
@@ -201,10 +201,9 @@ pub fn is_https_request(headers: &HeaderMap) -> bool {
     if let Some(v) = headers
         .get("x-forwarded-proto")
         .and_then(|v| v.to_str().ok())
+        && v.eq_ignore_ascii_case("https")
     {
-        if v.eq_ignore_ascii_case("https") {
-            return true;
-        }
+        return true;
     }
 
     // 2) Forwarded: proto=https; ...
@@ -227,9 +226,10 @@ pub fn is_https_request(headers: &HeaderMap) -> bool {
 /// - If `ZID_COOKIE_SECURE` is set to `false/0` -> never Secure (local HTTP)
 /// - Otherwise (default `auto`) -> infer from request headers (`is_https_request`)
 pub fn default_config_for_request(headers: &HeaderMap) -> SsoCookieConfig {
-    let mut cfg = SsoCookieConfig::default();
-    cfg.secure = cookie_secure_effective(headers);
-    cfg
+    SsoCookieConfig {
+        secure: cookie_secure_effective(headers),
+        ..Default::default()
+    }
 }
 
 /// Computes the effective `Secure` attribute for the cookie.

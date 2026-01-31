@@ -386,13 +386,14 @@ pub async fn login_form_submit(
             let _existing = get_sso_session_id(&headers);
 
             // Check if return_to is provided and not empty
-            if let Some(ref url) = return_to {
-                if !url.is_empty() {
-                    let redirect_url = format!("{}?ticket={}", url, ticket.id);
+            if let Some(ref url) = return_to
+                && !url.is_empty()
+            {
+                let redirect_url = format!("{}?ticket={}", url, ticket.id);
 
-                    // Возвращаем HTML с редиректом
-                    let html = format!(
-                        r#"
+                // Возвращаем HTML с редиректом
+                let html = format!(
+                    r#"
                         <!DOCTYPE html>
                         <html>
                         <head>
@@ -412,16 +413,15 @@ pub async fn login_form_submit(
                         </body>
                         </html>
                         "#,
-                        redirect_url, redirect_url
-                    );
+                    redirect_url, redirect_url
+                );
 
-                    let mut resp = axum::response::Html(html).into_response();
-                    resp.headers_mut().insert(
-                        axum::http::header::SET_COOKIE,
-                        axum::http::HeaderValue::from_str(&set_cookie_value).unwrap(),
-                    );
-                    return resp;
-                }
+                let mut resp = axum::response::Html(html).into_response();
+                resp.headers_mut().insert(
+                    axum::http::header::SET_COOKIE,
+                    axum::http::HeaderValue::from_str(&set_cookie_value).unwrap(),
+                );
+                return resp;
             }
 
             // No redirect - return success page with ticket info
@@ -705,7 +705,7 @@ pub async fn login_telegram(
 ) -> Result<LoginResponse, HttpError> {
     // Получаем токен бота из переменной окружения
     let bot_token = std::env::var("TELEGRAM_BOT_TOKEN").map_err(|_| {
-        HttpError(Error::InternalError(
+        HttpError(Error::Internal(
             "TELEGRAM_BOT_TOKEN not configured".to_string(),
         ))
     })?;
@@ -889,9 +889,7 @@ impl IntoResponse for HttpError {
 
             Error::UserAlreadyExists => StatusCode::CONFLICT,
 
-            Error::RepositoryError(_) | Error::InternalError(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            Error::Repository(_) | Error::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         // Return only status code, no error details
@@ -908,6 +906,6 @@ impl From<crate::ports::error::Error> for HttpError {
 // Convert tokio JoinError to Error
 impl From<tokio::task::JoinError> for HttpError {
     fn from(err: tokio::task::JoinError) -> Self {
-        Self(crate::ports::error::Error::InternalError(err.to_string()))
+        Self(crate::ports::error::Error::Internal(err.to_string()))
     }
 }

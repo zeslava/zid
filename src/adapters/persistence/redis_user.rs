@@ -20,16 +20,16 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let key = format!("user:username:{}", username);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
                 let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -40,16 +40,16 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let key = format!("user:id:{}", user_id);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
                 let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -60,7 +60,7 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         // Generate new user ID
         let user_id = uuid::Uuid::new_v4().to_string();
@@ -77,7 +77,7 @@ impl UserRepository for RedisUserRepository {
 
         let user_dto: UserDTO = user.into();
         let serialized =
-            serde_json::to_string(&user_dto).map_err(|e| Error::RepositoryError(e.to_string()))?;
+            serde_json::to_string(&user_dto).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Store by both ID and username for quick lookups
         let key_by_id = format!("user:id:{}", user_id);
@@ -85,10 +85,10 @@ impl UserRepository for RedisUserRepository {
 
         let _: () = conn
             .set(&key_by_id, &serialized)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let _: () = conn
             .set(&key_by_username, &serialized)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
@@ -97,16 +97,16 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let key = format!("user:telegram_id:{}", telegram_id);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
                 let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -123,7 +123,7 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let user_id = uuid::Uuid::new_v4().to_string();
 
@@ -143,7 +143,7 @@ impl UserRepository for RedisUserRepository {
 
         let user_dto: UserDTO = user.clone().into();
         let serialized =
-            serde_json::to_string(&user_dto).map_err(|e| Error::RepositoryError(e.to_string()))?;
+            serde_json::to_string(&user_dto).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Store by ID, username, and telegram_id for quick lookups
         let key_by_id = format!("user:id:{}", user_id);
@@ -152,13 +152,13 @@ impl UserRepository for RedisUserRepository {
 
         let _: () = conn
             .set(&key_by_id, &serialized)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let _: () = conn
             .set(&key_by_username, &serialized)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
         let _: () = conn
             .set(&key_by_telegram, &serialized)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(user)
     }
@@ -174,18 +174,18 @@ impl UserRepository for RedisUserRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         // Get existing user
         let key = format!("user:id:{}", user_id);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
                 let mut user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
 
                 // Update Telegram data
                 user_dto.telegram_id = Some(telegram_id);
@@ -194,7 +194,7 @@ impl UserRepository for RedisUserRepository {
                 user_dto.telegram_last_name = last_name;
 
                 let serialized = serde_json::to_string(&user_dto)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
 
                 // Update all keys
                 let key_by_id = format!("user:id:{}", user_id);
@@ -203,13 +203,13 @@ impl UserRepository for RedisUserRepository {
 
                 let _: () = conn
                     .set(&key_by_id, &serialized)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
                 let _: () = conn
                     .set(&key_by_username, &serialized)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
                 let _: () = conn
                     .set(&key_by_telegram, &serialized)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                    .map_err(|e| Error::Repository(e.to_string()))?;
 
                 Ok(())
             }

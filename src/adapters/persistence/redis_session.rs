@@ -18,7 +18,7 @@ impl SessionRepository for RedisSessionRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("session:id:{}", session_id);
 
@@ -29,7 +29,7 @@ impl SessionRepository for RedisSessionRepository {
         };
 
         let serialized =
-            serde_json::to_string(&session).map_err(|e| Error::RepositoryError(e.to_string()))?;
+            serde_json::to_string(&session).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Store session with TTL if expires_at is set
         if expires_at > 0 {
@@ -44,11 +44,11 @@ impl SessionRepository for RedisSessionRepository {
 
             let _: () = conn
                 .set_ex(&key, &serialized, ttl)
-                .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                .map_err(|e| Error::Repository(e.to_string()))?;
         } else {
             let _: () = conn
                 .set(&key, &serialized)
-                .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                .map_err(|e| Error::Repository(e.to_string()))?;
         }
 
         Ok(session_id.to_string())
@@ -58,17 +58,17 @@ impl SessionRepository for RedisSessionRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("session:id:{}", session_id);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
-                let session_dto: SessionDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                let session_dto: SessionDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(session_dto.into())
             }
             None => Err(Error::SessionNotFound),
@@ -79,14 +79,14 @@ impl SessionRepository for RedisSessionRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("session:id:{}", session_id);
 
         // Load existing session (to keep user_id intact)
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let data = match res {
             Some(data) => data,
@@ -94,13 +94,13 @@ impl SessionRepository for RedisSessionRepository {
         };
 
         let mut session_dto: SessionDTO =
-            serde_json::from_str(&data).map_err(|e| Error::RepositoryError(e.to_string()))?;
+            serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Update expiry in payload
         session_dto.expires_at = new_expires_at;
 
-        let serialized = serde_json::to_string(&session_dto)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        let serialized =
+            serde_json::to_string(&session_dto).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Apply new TTL only when expiry is set
         if new_expires_at > 0 {
@@ -115,11 +115,11 @@ impl SessionRepository for RedisSessionRepository {
 
             let _: () = conn
                 .set_ex(&key, &serialized, ttl)
-                .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                .map_err(|e| Error::Repository(e.to_string()))?;
         } else {
             let _: () = conn
                 .set(&key, &serialized)
-                .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                .map_err(|e| Error::Repository(e.to_string()))?;
         }
 
         Ok(())
@@ -129,12 +129,12 @@ impl SessionRepository for RedisSessionRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("session:id:{}", session_token);
         let _: () = conn
             .del(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }

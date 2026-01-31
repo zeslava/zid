@@ -21,7 +21,7 @@ impl PostgresCredentialsRepository {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         conn.batch_execute(
             "CREATE TABLE IF NOT EXISTS credentials (
@@ -31,7 +31,7 @@ impl PostgresCredentialsRepository {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );",
         )
-        .map_err(|e| Error::RepositoryError(e.to_string()))?;
+        .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
@@ -44,7 +44,7 @@ impl CredentialsRepository for PostgresCredentialsRepository {
                 "❌ Failed to get DB connection for credentials validation: {}",
                 e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
 
         let row = conn
@@ -63,7 +63,7 @@ impl CredentialsRepository for PostgresCredentialsRepository {
                         "❌ DB error when fetching credentials for '{}': {}",
                         username, e
                     );
-                    Error::RepositoryError(e.to_string())
+                    Error::Repository(e.to_string())
                 }
             })?;
 
@@ -71,13 +71,13 @@ impl CredentialsRepository for PostgresCredentialsRepository {
         println!(
             "🔍 Found credentials for user '{}', hash length: {}",
             username,
-            stored_hash.len()
+            stored_hash.len(),
         );
 
         // Parse the stored hash
         let parsed_hash = PasswordHash::new(&stored_hash).map_err(|e| {
             eprintln!("❌ Failed to parse password hash for '{}': {}", username, e);
-            Error::RepositoryError(format!("Failed to parse password hash: {}", e))
+            Error::Repository(format!("Failed to parse password hash: {}", e))
         })?;
 
         println!("🔍 Password hash parsed successfully for '{}'", username);
@@ -105,7 +105,7 @@ impl CredentialsRepository for PostgresCredentialsRepository {
                 "❌ Failed to get DB connection for creating credentials: {}",
                 e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
 
         // Hash the password
@@ -124,7 +124,7 @@ impl CredentialsRepository for PostgresCredentialsRepository {
                 "❌ Failed to insert/update credentials for '{}': {}",
                 username, e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
 
         println!("✅ Credentials created/updated for user '{}'", username);
@@ -140,7 +140,7 @@ fn hash_password(password: &str) -> Result<String, Error> {
     let argon2 = Argon2::default();
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| Error::InternalError(format!("Failed to hash password: {}", e)))?
+        .map_err(|e| Error::Internal(format!("Failed to hash password: {}", e)))?
         .to_string();
 
     Ok(password_hash)

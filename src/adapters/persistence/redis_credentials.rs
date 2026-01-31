@@ -23,7 +23,7 @@ impl CredentialsRepository for RedisCredentialsRepository {
                 "❌ Failed to get Redis connection for credentials validation: {}",
                 e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
         let key = format!("credentials:username:{}", username);
 
@@ -33,7 +33,7 @@ impl CredentialsRepository for RedisCredentialsRepository {
                 "❌ Redis error when fetching credentials for '{}': {}",
                 username, e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
 
         match stored_hash {
@@ -46,7 +46,7 @@ impl CredentialsRepository for RedisCredentialsRepository {
                 // Parse the stored hash
                 let parsed_hash = PasswordHash::new(&hash).map_err(|e| {
                     eprintln!("❌ Failed to parse password hash for '{}': {}", username, e);
-                    Error::RepositoryError(format!("Failed to parse password hash: {}", e))
+                    Error::Repository(format!("Failed to parse password hash: {}", e))
                 })?;
 
                 println!("🔍 Password hash parsed successfully for '{}'", username);
@@ -79,7 +79,7 @@ impl CredentialsRepository for RedisCredentialsRepository {
                 "❌ Failed to get Redis connection for creating credentials: {}",
                 e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
         let key = format!("credentials:username:{}", username);
 
@@ -92,7 +92,7 @@ impl CredentialsRepository for RedisCredentialsRepository {
                 "❌ Failed to set credentials in Redis for '{}': {}",
                 username, e
             );
-            Error::RepositoryError(e.to_string())
+            Error::Repository(e.to_string())
         })?;
 
         println!(
@@ -111,7 +111,7 @@ fn hash_password(password: &str) -> Result<String, Error> {
     let argon2 = Argon2::default();
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| Error::InternalError(format!("Failed to hash password: {}", e)))?
+        .map_err(|e| Error::Internal(format!("Failed to hash password: {}", e)))?
         .to_string();
 
     Ok(password_hash)

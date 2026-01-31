@@ -23,7 +23,7 @@ impl TicketRepository for RedisTicketRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let ticket_id = uuid::Uuid::new_v4().to_string();
 
@@ -38,7 +38,7 @@ impl TicketRepository for RedisTicketRepository {
         let key = format!("ticket:id:{}", ticket_id);
         let dto: TicketDTO = ticket.clone().into();
         let serialized =
-            serde_json::to_string(&dto).map_err(|e| Error::RepositoryError(e.to_string()))?;
+            serde_json::to_string(&dto).map_err(|e| Error::Repository(e.to_string()))?;
 
         // Calculate TTL
         let ttl = if expires_at > 0 {
@@ -53,7 +53,7 @@ impl TicketRepository for RedisTicketRepository {
 
         let _: () = conn
             .set_ex(&key, &serialized, ttl)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(ticket)
     }
@@ -62,17 +62,17 @@ impl TicketRepository for RedisTicketRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("ticket:id:{}", ticket_id);
         let res: Option<String> = conn
             .get(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         match res {
             Some(data) => {
-                let dto: TicketDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::RepositoryError(e.to_string()))?;
+                let dto: TicketDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(dto.into())
             }
             None => Err(Error::TicketNotFound),
@@ -83,12 +83,12 @@ impl TicketRepository for RedisTicketRepository {
         let mut conn = self
             .client
             .get_connection()
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         let key = format!("ticket:id:{}", ticket_id);
         let _: () = conn
             .del(&key)
-            .map_err(|e| Error::RepositoryError(e.to_string()))?;
+            .map_err(|e| Error::Repository(e.to_string()))?;
 
         Ok(())
     }
