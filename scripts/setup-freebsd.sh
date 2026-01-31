@@ -5,12 +5,6 @@
 
 set -e
 
-# Цвета для вывода
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
 # Конфигурация
 ZID_USER="zid"
 ZID_GROUP="zid"
@@ -19,25 +13,25 @@ ZID_LOG_DIR="/var/log/zid"
 ZID_RUN_DIR="/var/run/zid"
 ZID_BIN_PATH="${1:-./target/release/zid}"
 
-echo "${GREEN}=== ZID FreeBSD Setup ===${NC}"
+echo "=== ZID FreeBSD Setup ==="
 echo ""
 
 # Проверка прав администратора
 if [ "$(id -u)" != "0" ]; then
-    echo "${RED}Ошибка: скрипт должен быть запущен с правами root (используйте sudo)${NC}"
+    echo "Ошибка: скрипт должен быть запущен с правами root (используйте sudo)"
     exit 1
 fi
 
 # Проверка наличия бинарника
 if [ ! -f "$ZID_BIN_PATH" ]; then
-    echo "${RED}Ошибка: бинарник не найден: $ZID_BIN_PATH${NC}"
+    echo "Ошибка: бинарник не найден: $ZID_BIN_PATH"
     echo "Сначала соберите проект: cargo build --release"
     exit 1
 fi
 
 echo "📦 Установка бинарника..."
 install -m 0755 "$ZID_BIN_PATH" /usr/local/bin/zid
-echo "${GREEN}✓ Бинарник установлен${NC}"
+echo "✓ Бинарник установлен"
 echo ""
 
 # Создание пользователя и группы
@@ -61,7 +55,7 @@ else
         -c "ZID Authentication Service"
     echo "  Создан пользователь $ZID_USER"
 fi
-echo "${GREEN}✓ Пользователь и группа готовы${NC}"
+echo "✓ Пользователь и группа готовы"
 echo ""
 
 # Создание директорий
@@ -77,7 +71,7 @@ for dir in "$ZID_HOME" "$ZID_LOG_DIR" "$ZID_RUN_DIR"; do
     chown "$ZID_USER:$ZID_GROUP" "$dir"
     chmod 0750 "$dir"
 done
-echo "${GREEN}✓ Директории готовы${NC}"
+echo "✓ Директории готовы"
 echo ""
 
 # Установка rc.d скрипта
@@ -86,12 +80,12 @@ SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 RC_SCRIPT="$SCRIPT_DIR/zid.rc.d"
 
 if [ ! -f "$RC_SCRIPT" ]; then
-    echo "${RED}Ошибка: rc.d скрипт не найден: $RC_SCRIPT${NC}"
+    echo "Ошибка: rc.d скрипт не найден: $RC_SCRIPT"
     exit 1
 fi
 
 install -m 0555 "$RC_SCRIPT" /usr/local/etc/rc.d/zid
-echo "${GREEN}✓ RC.D скрипт установлен${NC}"
+echo "✓ RC.D скрипт установлен"
 echo ""
 
 # Создание конфиг-файла окружения
@@ -137,28 +131,28 @@ EOF
     chown root:"$ZID_GROUP" "$ENV_FILE"
 else
     echo "  Конфиг-файл уже существует: $ENV_FILE"
-    echo "  ${YELLOW}Проверьте и обновите содержимое при необходимости${NC}"
+    echo "  Проверьте и обновите содержимое при необходимости"
 fi
-echo "${GREEN}✓ Конфиг-файл готов${NC}"
+echo "✓ Конфиг-файл готов"
 echo ""
 
 # Итоговый статус
-echo "${GREEN}=== Установка завершена ===${NC}"
+echo "=== Установка завершена ==="
 echo ""
 echo "📋 Следующие шаги:"
 echo ""
 echo "1. Проверьте конфигурацию (отредактируйте если нужно):"
-echo "   ${YELLOW}nano /usr/local/etc/zid.conf${NC}"
+echo "   nano /usr/local/etc/zid.conf"
 echo ""
 echo "2. Отредактируйте /etc/rc.conf для автозапуска (опционально):"
-echo "   ${YELLOW}echo 'zid_enable=\"YES\"' >> /etc/rc.conf${NC}"
+echo "   echo 'zid_enable=\"YES\"' >> /etc/rc.conf"
 echo ""
 echo "3. Запустите сервис:"
-echo "   ${YELLOW}service zid start${NC}"
+echo "   service zid start"
 echo ""
 echo "4. Проверьте статус:"
-echo "   ${YELLOW}service zid status${NC}"
+echo "   service zid status"
 echo ""
 echo "5. Просмотрите логи:"
-echo "   ${YELLOW}tail -f /var/log/zid/zid.log${NC}"
+echo "   tail -f /var/log/zid/zid.log"
 echo ""
