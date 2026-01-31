@@ -24,6 +24,7 @@ ZID_GROUP="zid"
 ZID_HOME="/var/lib/zid"
 ZID_LOG_DIR="/var/log/zid"
 ZID_RUN_DIR="/var/run/zid"
+ZID_ETC_DIR="/usr/local/etc/zid"
 ZID_BIN_PATH="${1:-./target/release/zid}"
 
 echo "${GREEN}=== ZID FreeBSD Setup ===${NC}"
@@ -74,7 +75,7 @@ echo ""
 # Создание директорий
 echo "📁 Создание директорий..."
 
-for dir in "$ZID_HOME" "$ZID_LOG_DIR" "$ZID_RUN_DIR"; do
+for dir in "$ZID_ETC_DIR" "$ZID_HOME" "$ZID_LOG_DIR" "$ZID_RUN_DIR"; do
     if [ ! -d "$dir" ]; then
         mkdir -p "$dir"
         echo "  Создана директория: $dir"
@@ -84,6 +85,9 @@ for dir in "$ZID_HOME" "$ZID_LOG_DIR" "$ZID_RUN_DIR"; do
     chown "$ZID_USER:$ZID_GROUP" "$dir"
     chmod 0750 "$dir"
 done
+# Каталог конфигов: root:zid, чтобы сервис (user zid) мог читать zid.conf и OIDC-файлы
+chown root:"$ZID_GROUP" "$ZID_ETC_DIR"
+chmod 750 "$ZID_ETC_DIR"
 echo "${GREEN}✓ Директории готовы${NC}"
 echo ""
 
@@ -103,7 +107,7 @@ echo ""
 
 # Создание конфиг-файла окружения
 echo "⚙️  Создание конфиг-файла окружения..."
-ENV_FILE="/usr/local/etc/zid.conf"
+ENV_FILE="$ZID_ETC_DIR/zid.conf"
 
 if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" <<'EOF'
@@ -142,6 +146,13 @@ RUST_BACKTRACE="1"
 
 # Доверенные домены (comma-separated)
 TRUSTED_DOMAINS="localhost:3000,example.com"
+
+# OIDC/OAuth 2.0 (ключи и клиенты — в /usr/local/etc/zid/)
+# OIDC_ENABLED=true
+# OIDC_ISSUER=https://your-domain.example.com
+# OIDC_CLIENTS_FILE=/usr/local/etc/zid/oidc_clients.yaml
+# OIDC_JWT_PRIVATE_KEY=/usr/local/etc/zid/oidc_jwt_private.pem
+# OIDC_JWT_PUBLIC_KEY=/usr/local/etc/zid/oidc_jwt_public.pem
 EOF
     echo "  Создан конфиг-файл: $ENV_FILE"
     chmod 0640 "$ENV_FILE"
@@ -159,7 +170,7 @@ echo ""
 echo "📋 Следующие шаги:"
 echo ""
 echo "1. Проверьте конфигурацию (отредактируйте если нужно):"
-echo "   ${YELLOW}nano /usr/local/etc/zid.conf${NC}"
+echo "   ${YELLOW}nano /usr/local/etc/zid/zid.conf${NC}"
 echo ""
 echo "2. Отредактируйте /etc/rc.conf для автозапуска (опционально):"
 echo "   ${YELLOW}echo 'zid_enable=\"YES\"' >> /etc/rc.conf${NC}"

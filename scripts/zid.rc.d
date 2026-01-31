@@ -14,7 +14,7 @@
 # zid_user (str):		Пользователь для запуска. По умолчанию "zid".
 # zid_group (str):		Группа. По умолчанию "zid".
 # zid_env_file (str):		Файл с переменными окружения (см. rc.subr(8)).
-#				По умолчанию "/usr/local/etc/zid.conf".
+#				По умолчанию "/usr/local/etc/zid/zid.conf".
 # zid_config (str):		Устаревший синоним zid_env_file.
 # zid_logfile (str):		Файл логов. По умолчанию "/var/log/zid/zid.log".
 # zid_pidfile (str):		PID-файл. По умолчанию "/var/run/zid/zid.pid".
@@ -30,7 +30,7 @@ load_rc_config "$name"
 : ${zid_enable:=NO}
 : ${zid_user:=zid}
 : ${zid_group:=zid}
-: ${zid_config:=/usr/local/etc/zid.conf}
+: ${zid_config:=/usr/local/etc/zid/zid.conf}
 : ${zid_env_file:=$zid_config}
 : ${zid_logfile:=/var/log/zid/zid.log}
 : ${zid_pidfile:=/var/run/zid/zid.pid}
@@ -72,8 +72,9 @@ zid_start()
 	fi
 
 	# Запуск без -p/-o: daemon сразу возвращает управление.
+	# Переменные из zid_env_file подгружаем в окружение процесса (set -a; . file; set +a).
 	# PID и вывод в лог делаем в обёртке.
-	/usr/sbin/daemon -u "$zid_user" sh -c 'echo $$ > "'"$pidfile"'"; exec '"$command"' >> "'"$zid_logfile"'" 2>&1'
+	/usr/sbin/daemon -u "$zid_user" sh -c 'set -a; . "'"$zid_env_file"'"; set +a; echo $$ > "'"$pidfile"'"; exec '"$command"' >> "'"$zid_logfile"'" 2>&1'
 
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then

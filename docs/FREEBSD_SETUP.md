@@ -32,10 +32,10 @@ sudo sh ./scripts/setup-freebsd.sh ./target/release/zid
 
 ### 3. Конфигурация
 
-Отредактируйте файл с переменными окружения (по умолчанию `/usr/local/etc/zid.conf`):
+Отредактируйте файл с переменными окружения (по умолчанию `/usr/local/etc/zid/zid.conf`):
 
 ```bash
-sudo nano /usr/local/etc/zid.conf
+sudo nano /usr/local/etc/zid/zid.conf
 ```
 
 Убедитесь, что переменные окружения корректны (приложение читает `SERVER_HOST`, `SERVER_PORT`, `POSTGRES_*`, `REDIS_URL` и др. — см. раздел ниже).
@@ -69,7 +69,11 @@ sudo service zid start
 ```
 /usr/local/bin/zid                 # Исполняемый файл сервиса
 /usr/local/etc/rc.d/zid            # RC.D скрипт (управление сервисом)
-/usr/local/etc/zid.conf           # Файл переменных окружения (zid_env_file)
+/usr/local/etc/zid/                # Каталог конфигурации ZID
+  zid.conf                         # Файл переменных окружения (zid_env_file)
+  oidc_clients.yaml                # OIDC: клиенты (если включён OIDC)
+  oidc_jwt_private.pem             # OIDC: ключ подписи JWT
+  oidc_jwt_public.pem              # OIDC: публичный ключ (JWKS)
 /var/lib/zid/                      # Домашняя директория пользователя zid
 /var/log/zid/zid.log               # Логи сервиса
 /var/run/zid/zid.pid               # PID файл
@@ -86,7 +90,7 @@ zid_enable="YES"
 # Опциональные параметры (значения по умолчанию)
 zid_user="zid"                           # Unix-пользователь
 zid_group="zid"                          # Unix-группа
-zid_env_file="/usr/local/etc/zid.conf"   # Файл переменных окружения (см. rc.subr(8))
+zid_env_file="/usr/local/etc/zid/zid.conf"   # Файл переменных окружения (см. rc.subr(8))
 zid_logfile="/var/log/zid/zid.log"       # Файл логов
 zid_pidfile="/var/run/zid/zid.pid"       # PID файл
 ```
@@ -241,8 +245,8 @@ curl http://localhost:3000/health
 ### Ошибка подключения к БД
 
 ```bash
-# Проверьте DATABASE_URL в файле zid_env_file (по умолчанию /usr/local/etc/zid.conf)
-sudo cat /usr/local/etc/zid.conf | grep DATABASE_URL
+# Проверьте DATABASE_URL в файле zid_env_file (по умолчанию /usr/local/etc/zid/zid.conf)
+sudo cat /usr/local/etc/zid/zid.conf | grep DATABASE_URL
 
 # Тестируйте подключение
 psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
@@ -255,7 +259,7 @@ psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
 ```bash
 ls -la /var/log/zid/
 ls -la /var/run/zid/
-ls -la /usr/local/etc/zid.conf
+ls -la /usr/local/etc/zid/zid.conf
 ```
 
 Исправьте если нужно:
@@ -314,7 +318,7 @@ sudo sed -i '' '/zid_enable/d' /etc/rc.conf
 # 3. Удалите файлы
 sudo rm /usr/local/bin/zid
 sudo rm /usr/local/etc/rc.d/zid
-sudo rm /usr/local/etc/zid.conf
+sudo rm /usr/local/etc/zid/zid.conf
 
 # 4. Удалите пользователя и директории (опционально)
 sudo pw userdel zid
