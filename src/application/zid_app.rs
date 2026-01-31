@@ -271,6 +271,16 @@ impl ZidService for ZidApp {
         })
     }
 
+    fn resolve_session(&self, session_id: &str) -> Result<VerificationResult, Error> {
+        let session = self.sessions.get(session_id)?;
+        let user = self.users.get(&session.user_id)?;
+        Ok(VerificationResult {
+            user_id: user.id,
+            username: user.username,
+            session_id: session.id,
+        })
+    }
+
     fn create_user(&self, username: &str, password: &str) -> Result<(), Error> {
         // Create user in database
         self.users.create(username)?;

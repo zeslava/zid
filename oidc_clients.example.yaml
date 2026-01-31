@@ -1,0 +1,14 @@
+# Пример конфигурации OAuth-клиентов (скопировать в oidc_clients.yaml)
+# При OIDC_ENABLED=true путь задаётся через OIDC_CLIENTS_FILE
+
+clients:
+  - id: web-app
+    secret: optional-secret-for-confidential
+    redirect_uris:
+      - https://app.example.com/callback
+    grant_types:
+      - authorization_code
+  - id: service-m2m
+    secret: machine-secret
+    grant_types:
+      - client_credentials

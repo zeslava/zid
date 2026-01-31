@@ -35,7 +35,7 @@ pub async fn serve_static(axum::extract::Path(path): axum::extract::Path<String>
 }
 
 pub fn create_router(state: RouterState) -> axum::Router {
-    axum::Router::new()
+    let mut router = axum::Router::new()
         .route("/health", get(health_check))
         .route("/", get(login_form).post(login_form_submit))
         .route("/continue", post(continue_as_form_submit))
@@ -44,6 +44,16 @@ pub fn create_router(state: RouterState) -> axum::Router {
         .route("/login/telegram", post(login_telegram))
         .route("/verify", post(verify))
         .route("/logout", post(logout))
-        .route("/static/{*path}", get(serve_static))
-        .with_state(state)
+        .route("/static/{*path}", get(serve_static));
+
+    if state.oidc.is_some() {
+        router = router
+            .route("/.well-known/openid-configuration", get(oidc_discovery))
+            .route("/oauth/authorize", get(oidc_authorize))
+            .route("/oauth/token", post(oidc_token))
+            .route("/oauth/userinfo", get(oidc_userinfo))
+            .route("/oauth/jwks", get(oidc_jwks));
+    }
+
+    router.with_state(state)
 }

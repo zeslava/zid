@@ -156,6 +156,11 @@ docker compose ps               # Статус сервисов
 | `CREDENTIALS_STORAGE` | `postgres` (default), `redis` | Хранилище credentials |
 | `TRUSTED_DOMAINS` | comma-separated | Доверенные домены для return_to |
 | `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure флаг для cookie |
+| `OIDC_ENABLED` | `true` (default), `false` | Включить OIDC/OAuth 2.0; при отсутствии конфига/ключей — запуск без OIDC |
+| `OIDC_ISSUER` | URL | Базовый URL issuer (discovery, JWT) |
+| `OIDC_CLIENTS_FILE` | путь | Файл клиентов в формате TOML (`.toml`) или YAML (`.yaml`/`.yml`); формат по расширению |
+| `OIDC_JWT_PRIVATE_KEY` | путь к PEM | Приватный ключ для подписи JWT |
+| `OIDC_JWT_PUBLIC_KEY` | путь к PEM | Публичный ключ (JWKS, верификация) |
 
 Полный список в `.env.example`.
 
@@ -178,6 +183,18 @@ docker compose ps               # Статус сервисов
 | POST | `/verify` | Верификация тикета |
 | POST | `/logout` | Удаление сессии |
 | GET | `/health` | Health check |
+
+### OIDC/OAuth 2.0 (при OIDC_ENABLED=true)
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| GET | `/.well-known/openid-configuration` | Discovery |
+| GET | `/oauth/authorize` | Authorization (code flow) |
+| POST | `/oauth/token` | Обмен code на токены, client_credentials |
+| GET | `/oauth/userinfo` | UserInfo: Bearer **access_token** (рекомендуется) или **id_token**; токен в заголовке `Authorization: Bearer` или в query `access_token`. Claims: sub, name, preferred_username, email (при scope profile/email). |
+| GET | `/oauth/jwks` | JWKS |
+
+Клиенты задаются в TOML или YAML (OIDC_CLIENTS_FILE; формат по расширению). Поддерживаются Authorization Code (+ PKCE) и Client Credentials.
 
 ## Миграции
 

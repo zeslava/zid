@@ -28,8 +28,8 @@ impl UserRepository for RedisUserRepository {
 
         match res {
             Some(data) => {
-                let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::Repository(e.to_string()))?;
+                let user_dto: UserDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -48,8 +48,8 @@ impl UserRepository for RedisUserRepository {
 
         match res {
             Some(data) => {
-                let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::Repository(e.to_string()))?;
+                let user_dto: UserDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -105,8 +105,8 @@ impl UserRepository for RedisUserRepository {
 
         match res {
             Some(data) => {
-                let user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::Repository(e.to_string()))?;
+                let user_dto: UserDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
                 Ok(user_dto.into())
             }
             None => Err(Error::UserNotFound),
@@ -184,8 +184,8 @@ impl UserRepository for RedisUserRepository {
 
         match res {
             Some(data) => {
-                let mut user_dto: UserDTO = serde_json::from_str(&data)
-                    .map_err(|e| Error::Repository(e.to_string()))?;
+                let mut user_dto: UserDTO =
+                    serde_json::from_str(&data).map_err(|e| Error::Repository(e.to_string()))?;
 
                 // Update Telegram data
                 user_dto.telegram_id = Some(telegram_id);

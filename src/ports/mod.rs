@@ -1,6 +1,9 @@
+pub mod auth_code_repository;
+pub mod client_store;
 pub mod credentials_repository;
 pub mod entities;
 pub mod error;
+pub mod oidc_service;
 pub mod session_repository;
 pub mod ticket_repository;
 pub mod user_repository;

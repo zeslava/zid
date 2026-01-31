@@ -37,6 +37,19 @@ pub enum Error {
 
     /// Internal error (unexpected conditions)
     Internal(String),
+
+    // OAuth 2.0 / OIDC (RFC 6749, OIDC Core)
+    /// invalid_client — клиент не найден или не прошёл аутентификацию
+    InvalidClient,
+    /// invalid_grant — код/токен невалиден или уже использован
+    InvalidGrant,
+    /// unauthorized_client — клиент не имеет права на данный grant_type
+    UnauthorizedClient,
+    /// invalid_scope — запрошенный scope невалиден
+    #[allow(dead_code)]
+    InvalidScope,
+    /// invalid_request — некорректный запрос (redirect_uri и т.д.)
+    InvalidRequest(String),
 }
 
 impl fmt::Display for Error {
@@ -59,6 +72,11 @@ impl fmt::Display for Error {
             Error::UserAlreadyExists => write!(f, "User already exists"),
             Error::Repository(msg) => write!(f, "Repository error: {msg}"),
             Error::Internal(msg) => write!(f, "Internal error: {msg}"),
+            Error::InvalidClient => write!(f, "invalid_client"),
+            Error::InvalidGrant => write!(f, "invalid_grant"),
+            Error::UnauthorizedClient => write!(f, "unauthorized_client"),
+            Error::InvalidScope => write!(f, "invalid_scope"),
+            Error::InvalidRequest(msg) => write!(f, "invalid_request: {msg}"),
         }
     }
 }

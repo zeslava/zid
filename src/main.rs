@@ -6,10 +6,14 @@ use r2d2_postgres::PostgresConnectionManager;
 
 use crate::{
     adapters::http::{handlers::RouterState, routes},
-    application::zid_app::ZidApp,
+    adapters::oidc::file_client_store::FileClientStore,
+    adapters::persistence::redis_auth_code::RedisAuthCodeRepository,
+    application::{oidc_app::OidcApp, oidc_jwt::OidcJwtKeys, zid_app::ZidApp},
     ports::{
-        credentials_repository::CredentialsRepository, session_repository::SessionRepository,
-        ticket_repository::TicketRepository, zid_service::ZidService,
+        auth_code_repository::AuthCodeRepository, client_store::ClientStore,
+        credentials_repository::CredentialsRepository, oidc_service::OidcService,
+        session_repository::SessionRepository, ticket_repository::TicketRepository,
+        zid_service::ZidService,
     },
 };
 
@@ -177,14 +181,95 @@ async fn main() -> anyhow::Result<()> {
 
     // Create ZID application service
     let zid_application: Arc<dyn ZidService> = Arc::new(ZidApp::new(
-        user_repository,
+        user_repository.clone(),
         session_repository,
         creds_repository,
         ticket_repository,
     ));
 
+    // OIDC/OAuth 2.0: по умолчанию включён; при отсутствии конфига/ключей — запуск без OIDC
+    let oidc_wanted = std::env::var("OIDC_ENABLED")
+        .unwrap_or_else(|_| "true".to_string())
+        .to_lowercase();
+    let oidc_wanted = oidc_wanted == "true" || oidc_wanted == "1";
+
+    let mut router_state = RouterState::new(zid_application);
+
+    if oidc_wanted {
+        // Issuer — URL сервера авторизации (ZID), по которому клиенты обращаются к discovery и проверяют JWT.
+        // 0.0.0.0 не подходит: клиенты не могут к нему обращаться; по умолчанию подставляем localhost.
+        let issuer_host = if server_host == "0.0.0.0" || server_host == "::" {
+            "localhost"
+        } else {
+            &server_host
+        };
+        let oidc_issuer = std::env::var("OIDC_ISSUER")
+            .unwrap_or_else(|_| format!("http://{}:{}", issuer_host, server_port));
+        let clients_file =
+            std::env::var("OIDC_CLIENTS_FILE").unwrap_or_else(|_| "oidc_clients.toml".to_string());
+        let private_key_path = std::env::var("OIDC_JWT_PRIVATE_KEY")
+            .unwrap_or_else(|_| "oidc_jwt_private.pem".to_string());
+        let public_key_path = std::env::var("OIDC_JWT_PUBLIC_KEY")
+            .unwrap_or_else(|_| "oidc_jwt_public.pem".to_string());
+
+        let clients_path = std::path::Path::new(&clients_file);
+        let client_store = match FileClientStore::from_path(clients_path) {
+            Ok(store) => {
+                println!("✅ OIDC clients loaded from {}", clients_file);
+                Some(Arc::new(store) as Arc<dyn ClientStore>)
+            }
+            Err(e) => {
+                eprintln!(
+                    "⚠️ OIDC disabled: failed to load clients file {}: {}",
+                    clients_file, e
+                );
+                None
+            }
+        };
+
+        let auth_code_repository =
+            client_store
+                .as_ref()
+                .and_then(|_| match redis::Client::open(redis_url.as_str()) {
+                    Ok(c) => {
+                        Some(Arc::new(RedisAuthCodeRepository::new(c))
+                            as Arc<dyn AuthCodeRepository>)
+                    }
+                    Err(e) => {
+                        eprintln!("⚠️ OIDC disabled: Redis required for auth codes: {}", e);
+                        None
+                    }
+                });
+
+        let jwt_keys = client_store.as_ref().and_then(|_| {
+            let priv_path = std::path::Path::new(&private_key_path);
+            let pub_path = std::path::Path::new(&public_key_path);
+            match OidcJwtKeys::from_pem_paths(priv_path, pub_path, "zid-rs256-1") {
+                Ok(k) => Some(Arc::new(k)),
+                Err(e) => {
+                    eprintln!("⚠️ OIDC disabled: failed to load JWT keys: {}", e);
+                    None
+                }
+            }
+        });
+
+        if let (Some(client_store), Some(auth_code_repository), Some(jwt_keys)) =
+            (client_store, auth_code_repository, jwt_keys)
+        {
+            let oidc_app: Arc<dyn OidcService> = Arc::new(OidcApp::new(
+                client_store,
+                auth_code_repository,
+                jwt_keys,
+                user_repository,
+                oidc_issuer.trim_end_matches('/').to_string(),
+            ));
+            router_state =
+                router_state.with_oidc(oidc_app, oidc_issuer.trim_end_matches('/').to_string());
+            println!("✅ OIDC/OAuth 2.0 enabled (issuer: {})", oidc_issuer);
+        }
+    }
+
     // Setup HTTP server (async handlers with sync services)
-    let router_state = RouterState::new(zid_application);
     let router = routes::create_router(router_state);
 
     let bind_addr = format!("{}:{}", server_host, server_port);

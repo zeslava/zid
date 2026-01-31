@@ -43,6 +43,9 @@ pub trait ZidService: Send + Sync {
     /// Тикет может быть использован только один раз (one-time use)
     fn verify(&self, ticket_id: &str, service_url: &str) -> Result<VerificationResult, Error>;
 
+    /// Получить пользователя по SSO session_id (без выдачи тикета). Для OAuth authorize.
+    fn resolve_session(&self, session_id: &str) -> Result<VerificationResult, Error>;
+
     /// Создать пользователя с хешированным паролем
     fn create_user(&self, username: &str, password: &str) -> Result<(), Error>;
 }

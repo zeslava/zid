@@ -105,19 +105,25 @@ impl UserRepository for PostgresUserRepository {
             .map_err(|e| Error::Repository(e.to_string()))?;
         let user_id = uuid::Uuid::new_v4().to_string();
 
-        conn.execute(
-            "INSERT INTO users (id, username) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING",
-            &[&user_id, &username],
-        )
-        .map_err(|e| {
-            if e.to_string().contains("duplicate key")
-                || e.to_string().contains("unique constraint")
-            {
-                Error::UserAlreadyExists
-            } else {
-                Error::Repository(e.to_string())
-            }
-        })?;
+        let rows = conn
+            .execute(
+                "INSERT INTO users (id, username) VALUES ($1, $2) ON CONFLICT (username) DO NOTHING",
+                &[&user_id, &username],
+            )
+            .map_err(|e| {
+                if e.to_string().contains("duplicate key")
+                    || e.to_string().contains("unique constraint")
+                {
+                    Error::UserAlreadyExists
+                } else {
+                    Error::Repository(e.to_string())
+                }
+            })?;
+
+        // ON CONFLICT DO NOTHING не возвращает ошибку при конфликте — проверяем количество вставленных строк
+        if rows == 0 {
+            return Err(Error::UserAlreadyExists);
+        }
 
         Ok(())
     }

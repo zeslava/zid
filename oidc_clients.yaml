@@ -1,0 +1,7 @@
+clients:
+  - id: cfgy
+    secret: "cfgy-secret-123@_"
+    redirect_uris:
+      - http://localhost:5173/oauth/zid/callback
+    grant_types:
+      - authorization_code
