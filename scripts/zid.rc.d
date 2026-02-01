@@ -32,6 +32,8 @@ load_rc_config "$name"
 : ${zid_group:=zid}
 : ${zid_config:=/usr/local/etc/zid/zid.conf}
 : ${zid_env_file:=$zid_config}
+# Пустой zid_env_file из rc.conf не переопределяет путь по умолчанию
+[ -z "$zid_env_file" ] && zid_env_file="$zid_config"
 : ${zid_logfile:=/var/log/zid/zid.log}
 : ${zid_pidfile:=/var/run/zid/zid.pid}
 
@@ -47,6 +49,7 @@ check_env_file()
 {
 	if [ ! -f "$zid_env_file" ]; then
 		warn "Env file not found: $zid_env_file"
+		warn "Проверьте: ls -la $(dirname "$zid_env_file")  # путь задаётся в rc.conf: zid_env_file"
 		return 1
 	fi
 	return 0
