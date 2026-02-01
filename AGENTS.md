@@ -131,6 +131,7 @@ task down        # Остановка Docker сервисов
 # Сборка и запуск
 task build       # Сборка Rust приложения
 task run         # Запуск приложения локально
+task cross-freebsd-aarch64  # Кросс-сборка для FreeBSD aarch64 (Linux amd64), см. docs/FREEBSD_SETUP.md
 
 # База данных
 task migrate     # Запуск миграций (sqlx-cli)

@@ -53,6 +53,35 @@ echo 'zid_enable="YES"' | sudo tee -a /etc/rc.conf
 sudo service zid start
 ```
 
+## Кросс-компиляция с Linux (amd64)
+
+Чтобы собрать бинарник для FreeBSD aarch64 на машине с Linux amd64 (без доступа к FreeBSD):
+
+**Требования:** Docker, Rust (rustup), [cross](https://github.com/cross-rs/cross). Target `aarch64-unknown-freebsd` на хосте (Linux) не поддерживается stable — сборка выполняется внутри Docker-образа cross с nightly и build-std.
+
+```bash
+# Один раз: установить cross
+cargo install cross
+
+# Сборка (внутри контейнера используется nightly для build-std)
+task cross-freebsd-aarch64
+```
+
+Артефакт: `./target/aarch64-unknown-freebsd/release/zid`. Скопируйте его на FreeBSD (например через `scp`) и установите по текущему сценарию:
+
+```bash
+# На FreeBSD после копирования бинарника
+sudo sh ./scripts/setup-freebsd.sh ./target/aarch64-unknown-freebsd/release/zid
+```
+
+В корне проекта задан `Cross.toml` с образом для target `aarch64-unknown-freebsd`. Если образ `ghcr.io/cross-rs/aarch64-unknown-freebsd:latest` не найден при сборке, соберите его из репозитория cross-rs:
+
+```bash
+git clone --depth 1 https://github.com/cross-rs/cross && cd cross/docker && docker build -f Dockerfile.aarch64-unknown-freebsd -t ghcr.io/cross-rs/aarch64-unknown-freebsd:latest .
+```
+
+Если Docker недоступен, потребуется ручная настройка: кросс-линкер и sysroot FreeBSD aarch64, указание линкера в `.cargo/config.toml` для target `aarch64-unknown-freebsd`.
+
 ## Команды управления
 
 | Команда | Описание |

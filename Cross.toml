@@ -1,0 +1,12 @@
+# Кросс-сборка для FreeBSD aarch64 (task cross-freebsd-aarch64).
+# У cross нет готового образа для aarch64-unknown-freebsd в списке по умолчанию,
+# поэтому образ задаётся явно. Если образ не найден на ghcr.io, соберите из cross-rs:
+#   git clone --depth 1 https://github.com/cross-rs/cross && cd cross/docker && docker build -f Dockerfile.aarch64-unknown-freebsd -t ghcr.io/cross-rs/aarch64-unknown-freebsd:latest .
+# build-std: rust-std для aarch64-unknown-freebsd не поставляется в rustup, собираем std из исходников.
+# RUSTUP_TOOLCHAIN=nightly: build-std для такого target требует nightly в контейнере.
+[target.aarch64-unknown-freebsd]
+image = "ghcr.io/cross-rs/aarch64-unknown-freebsd:latest"
+build-std = true
+
+[target.aarch64-unknown-freebsd.env]
+passthrough = ["RUSTUP_TOOLCHAIN=nightly"]

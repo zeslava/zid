@@ -173,8 +173,9 @@ zid_logs()
 }
 
 extra_commands="status config logs"
-zid_config_cmd="zid_showconfig"
-zid_logs_cmd="zid_logs"
-zid_status_cmd="zid_status"
+# rc.subr ищет переменные ${rc_arg}_cmd (config_cmd, logs_cmd, status_cmd), не ${name}_*_cmd
+config_cmd="zid_showconfig"
+logs_cmd="zid_logs"
+status_cmd="zid_status"
 
 run_rc_command "$1"

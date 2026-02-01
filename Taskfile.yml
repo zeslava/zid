@@ -57,9 +57,17 @@ tasks:
 
   install-freebsd:
     desc: Установка ZID на FreeBSD (скрипт scripts/setup-freebsd.sh; для установки нужен sudo task install-freebsd)
-    deps: [build]
     cmds:
       - ./scripts/setup-freebsd.sh target/release/zid
+
+  cross-freebsd-aarch64:
+    desc: Кросс-сборка для FreeBSD aarch64 с Linux amd64 (Docker + cross)
+    env:
+      RUSTUP_TOOLCHAIN: nightly
+    cmds:
+      - 'command -v cross >/dev/null || (echo "cross не найден. Установите: cargo install cross"; exit 1)'
+      - 'docker image inspect ghcr.io/cross-rs/aarch64-unknown-freebsd:latest >/dev/null 2>&1 || (echo "Образ для aarch64-unknown-freebsd не найден. Соберите его один раз:"; echo "  git clone --depth 1 https://github.com/cross-rs/cross && cd cross/docker && docker build -f Dockerfile.aarch64-unknown-freebsd -t ghcr.io/cross-rs/aarch64-unknown-freebsd:latest ."; exit 1)'
+      - cross build --release --target aarch64-unknown-freebsd
 
   oidc-gen-keys:
     desc: Сгенерировать PEM-ключи для OIDC JWT (private + public)
