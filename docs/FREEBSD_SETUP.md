@@ -104,9 +104,9 @@ zid_pidfile="/var/run/zid/zid.pid"       # PID файл
 SERVER_HOST="0.0.0.0"
 SERVER_PORT="5555"
 
-# Хранилища (redis по умолчанию, postgres как альтернатива)
-SESSION_STORAGE="redis"
-TICKET_STORAGE="redis"
+# Хранилища (postgres по умолчанию, redis как альтернатива)
+SESSION_STORAGE="postgres"
+TICKET_STORAGE="postgres"
 CREDENTIALS_STORAGE="postgres"
 
 # База данных PostgreSQL

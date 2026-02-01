@@ -36,9 +36,9 @@ async fn main() -> anyhow::Result<()> {
     let server_port = std::env::var("SERVER_PORT").unwrap_or_else(|_| "5555".to_string());
 
     // Storage backend configuration
-    // Options: "postgres" or "redis" (default for sessions/tickets due to TTL support)
-    let session_storage = std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "redis".to_string());
-    let ticket_storage = std::env::var("TICKET_STORAGE").unwrap_or_else(|_| "redis".to_string());
+    // Options: "postgres" (default) or "redis" for sessions/tickets
+    let session_storage = std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "postgres".to_string());
+    let ticket_storage = std::env::var("TICKET_STORAGE").unwrap_or_else(|_| "postgres".to_string());
     let credentials_storage =
         std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());
 

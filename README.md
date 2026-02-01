@@ -284,15 +284,15 @@ TELEGRAM_AUTO_REGISTER=true
 ZID_COOKIE_SECURE=auto        # auto (по умолчанию) / true / false
 
 # Storage backend (опционально)
-SESSION_STORAGE=redis         # redis (по умолчанию) или postgres
-TICKET_STORAGE=redis          # redis (по умолчанию) или postgres
+SESSION_STORAGE=postgres      # postgres (по умолчанию) или redis
+TICKET_STORAGE=postgres       # postgres (по умолчанию) или redis
 CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
 ```
 
 ### Про storage
 - `SESSION_STORAGE` / `TICKET_STORAGE`
-  - `redis` (по умолчанию): TTL «из коробки»
-  - `postgres`: хранение в БД (нужна периодическая очистка просроченных записей)
+  - `postgres` (по умолчанию): хранение в БД
+  - `redis`: TTL «из коробки»
 - `CREDENTIALS_STORAGE`
   - `postgres` (по умолчанию): credentials в PostgreSQL
   - `redis`: альтернативный вариант

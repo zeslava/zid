@@ -119,8 +119,8 @@ SERVER_HOST="0.0.0.0"
 SERVER_PORT="5555"
 
 # Хранилища
-SESSION_STORAGE="redis"
-TICKET_STORAGE="redis"
+SESSION_STORAGE="postgres"
+TICKET_STORAGE="postgres"
 CREDENTIALS_STORAGE="postgres"
 
 # База данных PostgreSQL

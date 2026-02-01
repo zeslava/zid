@@ -151,8 +151,8 @@ docker compose ps               # Статус сервисов
 
 | Переменная | Значения | Описание |
 |------------|----------|----------|
-| `SESSION_STORAGE` | `redis` (default), `postgres` | Хранилище сессий |
-| `TICKET_STORAGE` | `redis` (default), `postgres` | Хранилище тикетов |
+| `SESSION_STORAGE` | `postgres` (default), `redis` | Хранилище сессий |
+| `TICKET_STORAGE` | `postgres` (default), `redis` | Хранилище тикетов |
 | `CREDENTIALS_STORAGE` | `postgres` (default), `redis` | Хранилище credentials |
 | `TRUSTED_DOMAINS` | comma-separated | Доверенные домены для return_to |
 | `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure флаг для cookie |

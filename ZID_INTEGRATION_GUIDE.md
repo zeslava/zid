@@ -189,8 +189,8 @@ SERVER_PORT=5555
 TRUSTED_DOMAINS=localhost,127.0.0.1,*.local.dev,*.local,*.lan
 
 # Хранилища (postgres или redis)
-SESSION_STORAGE=redis
-TICKET_STORAGE=redis
+SESSION_STORAGE=postgres
+TICKET_STORAGE=postgres
 CREDENTIALS_STORAGE=postgres
 
 # Cookie security
