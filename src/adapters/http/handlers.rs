@@ -921,7 +921,11 @@ pub async fn register_form_submit(
 /// GET /.well-known/openid-configuration
 pub async fn oidc_discovery(State(state): State<RouterState>) -> Response {
     let Some(_oidc) = state.oidc.as_ref() else {
-        return (StatusCode::NOT_FOUND, "OIDC disabled").into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC is not configured on this server",
+        )
+            .into_response();
     };
     let Some(issuer) = &state.oidc_issuer else {
         return (StatusCode::INTERNAL_SERVER_ERROR, "OIDC issuer not set").into_response();
@@ -954,7 +958,11 @@ pub async fn oidc_authorize(
     headers: HeaderMap,
 ) -> Response {
     let Some(oidc) = state.oidc.as_ref() else {
-        return (StatusCode::NOT_FOUND, "OIDC disabled").into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC is not configured on this server",
+        )
+            .into_response();
     };
     let response_type = params.get("response_type").cloned().unwrap_or_default();
     let client_id = params.get("client_id").cloned().unwrap_or_default();
@@ -1046,10 +1054,10 @@ pub async fn oidc_token(
 ) -> Response {
     let Some(oidc) = state.oidc.as_ref() else {
         return (
-            StatusCode::NOT_FOUND,
+            StatusCode::SERVICE_UNAVAILABLE,
             Json(TokenErrorResponse {
-                error: "invalid_request".to_string(),
-                error_description: Some("OIDC disabled".to_string()),
+                error: "server_error".to_string(),
+                error_description: Some("OIDC is not configured on this server".to_string()),
             }),
         )
             .into_response();
@@ -1170,7 +1178,11 @@ pub async fn oidc_userinfo(
     axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(oidc) = state.oidc.as_ref() else {
-        return (StatusCode::NOT_FOUND, "OIDC disabled").into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC is not configured on this server",
+        )
+            .into_response();
     };
     let bearer = headers
         .get("authorization")
@@ -1209,7 +1221,11 @@ pub async fn oidc_userinfo(
 /// GET /oauth/jwks
 pub async fn oidc_jwks(State(state): State<RouterState>) -> Response {
     let Some(oidc) = state.oidc.as_ref() else {
-        return (StatusCode::NOT_FOUND, "OIDC disabled").into_response();
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "OIDC is not configured on this server",
+        )
+            .into_response();
     };
     let jwks = oidc.get_jwks();
     (StatusCode::OK, Json(jwks)).into_response()

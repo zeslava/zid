@@ -65,10 +65,14 @@ zid_start()
 		chown "$zid_user:$zid_group" "$(dirname "$pidfile")"
 	fi
 
-	# Создание директории для логов если не существует
+	# Создание директории и файла логов если не существуют (чтобы service zid logs работал сразу после start)
 	if [ ! -d "$(dirname "$zid_logfile")" ]; then
 		mkdir -p "$(dirname "$zid_logfile")"
 		chown "$zid_user:$zid_group" "$(dirname "$zid_logfile")"
+	fi
+	if [ ! -f "$zid_logfile" ]; then
+		touch "$zid_logfile"
+		chown "$zid_user:$zid_group" "$zid_logfile"
 	fi
 
 	# Запуск без -p/-o: daemon сразу возвращает управление.
@@ -168,6 +172,7 @@ zid_logs()
 		tail -f "$zid_logfile"
 	else
 		echo "Log file not found: $zid_logfile"
+		echo "Запустите сервис: service zid start"
 		return 1
 	fi
 }

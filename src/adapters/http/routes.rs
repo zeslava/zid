@@ -46,14 +46,13 @@ pub fn create_router(state: RouterState) -> axum::Router {
         .route("/logout", post(logout))
         .route("/static/{*path}", get(serve_static));
 
-    if state.oidc.is_some() {
-        router = router
-            .route("/.well-known/openid-configuration", get(oidc_discovery))
-            .route("/oauth/authorize", get(oidc_authorize))
-            .route("/oauth/token", post(oidc_token))
-            .route("/oauth/userinfo", get(oidc_userinfo))
-            .route("/oauth/jwks", get(oidc_jwks));
-    }
+    // OAuth/OIDC маршруты всегда регистрируем; при отключённом OIDC handlers вернут 503
+    router = router
+        .route("/.well-known/openid-configuration", get(oidc_discovery))
+        .route("/oauth/authorize", get(oidc_authorize))
+        .route("/oauth/token", post(oidc_token))
+        .route("/oauth/userinfo", get(oidc_userinfo))
+        .route("/oauth/jwks", get(oidc_jwks));
 
     router.with_state(state)
 }

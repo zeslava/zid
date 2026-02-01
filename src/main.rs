@@ -266,6 +266,12 @@ async fn main() -> anyhow::Result<()> {
             router_state =
                 router_state.with_oidc(oidc_app, oidc_issuer.trim_end_matches('/').to_string());
             println!("✅ OIDC/OAuth 2.0 enabled (issuer: {})", oidc_issuer);
+        } else {
+            eprintln!(
+                "⚠️ OIDC не включён: не хватает конфигурации (файл клиентов {}, Redis, JWT-ключи {} / {}). \
+                 Запросы к /oauth/* будут возвращать 503.",
+                clients_file, private_key_path, public_key_path
+            );
         }
     }
 
