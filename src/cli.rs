@@ -29,6 +29,9 @@ pub enum Command {
     Serve,
     /// Управление OIDC клиентами
     OidcClient {
+        /// Путь к файлу клиентов (по умолчанию: $OIDC_CLIENTS_FILE или oidc_clients.yaml)
+        #[arg(long, short = 'f')]
+        file: Option<String>,
         #[command(subcommand)]
         action: OidcClientAction,
     },
@@ -61,9 +64,10 @@ pub enum OidcClientAction {
 }
 
 /// Точка входа для CLI-команд oidc-client.
-pub fn handle_oidc_client(action: OidcClientAction) {
-    let clients_file =
-        std::env::var("OIDC_CLIENTS_FILE").unwrap_or_else(|_| "oidc_clients.yaml".to_string());
+pub fn handle_oidc_client(file: Option<String>, action: OidcClientAction) {
+    let clients_file = file.unwrap_or_else(|| {
+        std::env::var("OIDC_CLIENTS_FILE").unwrap_or_else(|_| "oidc_clients.yaml".to_string())
+    });
     let path = Path::new(&clients_file);
 
     match action {

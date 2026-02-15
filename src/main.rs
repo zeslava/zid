@@ -28,8 +28,8 @@ async fn main() -> anyhow::Result<()> {
     let args = cli::Cli::parse();
     match args.command {
         None | Some(cli::Command::Serve) => run_server().await,
-        Some(cli::Command::OidcClient { action }) => {
-            cli::handle_oidc_client(action);
+        Some(cli::Command::OidcClient { file, action }) => {
+            cli::handle_oidc_client(file, action);
             Ok(())
         }
     }
