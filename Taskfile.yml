@@ -58,7 +58,7 @@ tasks:
   install-freebsd:
     desc: Установка ZID на FreeBSD (скрипт scripts/setup-freebsd.sh; для установки нужен sudo task install-freebsd)
     cmds:
-      - ./scripts/setup-freebsd.sh target/release/zid
+      - doas ./scripts/setup-freebsd.sh target/release/zid
 
   cross-freebsd-aarch64:
     desc: Кросс-сборка для FreeBSD aarch64 с Linux amd64 (Docker + cross)
