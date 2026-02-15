@@ -2,10 +2,19 @@
 
 use std::path::Path;
 
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use clap::{Parser, Subcommand};
-use inquire::{MultiSelect, Text, validator::Validation};
+use inquire::{Confirm, MultiSelect, Text, validator::Validation};
+use rand_core::{OsRng, RngCore};
 
 use crate::adapters::oidc::file_client_store::{ClientEntry, ClientsFile};
+
+/// Генерация случайного секрета (32 байта, base64url).
+fn generate_secret() -> String {
+    let mut buf = [0u8; 32];
+    OsRng.fill_bytes(&mut buf);
+    URL_SAFE_NO_PAD.encode(buf)
+}
 
 #[derive(Parser)]
 #[command(name = "zid", about = "ZID — CAS-like SSO authentication server")]
@@ -157,14 +166,26 @@ fn prompt_client() -> (String, Option<String>, Vec<String>, Vec<String>) {
             std::process::exit(1);
         });
 
-    let secret_input = Text::new("Client Secret (пустой = без секрета):")
+    let secret_input = Text::new("Client Secret (пустой = сгенерировать):")
         .prompt()
         .unwrap_or_else(|e| {
             eprintln!("Ошибка ввода: {e}");
             std::process::exit(1);
         });
     let secret = if secret_input.trim().is_empty() {
-        None
+        let generated = generate_secret();
+        let accept = Confirm::new(&format!("Использовать сгенерированный секрет: {generated} ?"))
+            .with_default(true)
+            .prompt()
+            .unwrap_or_else(|e| {
+                eprintln!("Ошибка ввода: {e}");
+                std::process::exit(1);
+            });
+        if accept {
+            Some(generated)
+        } else {
+            None
+        }
     } else {
         Some(secret_input)
     };
@@ -221,6 +242,15 @@ fn cmd_add(
     let (id, secret, redirect_uris, grant_types) = if id.is_none() || grant_types.is_empty() {
         prompt_client()
     } else {
+        // --secret "" → сгенерировать секрет автоматически
+        let secret = match secret {
+            Some(s) if s.trim().is_empty() => {
+                let generated = generate_secret();
+                println!("Сгенерирован секрет: {generated}");
+                Some(generated)
+            }
+            other => other,
+        };
         (id.unwrap(), secret, redirect_uris, grant_types)
     };
 
