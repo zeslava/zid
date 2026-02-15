@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use clap::Parser;
 use postgres::NoTls;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
@@ -19,10 +20,22 @@ use crate::{
 
 mod adapters;
 mod application;
+mod cli;
 mod ports;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = cli::Cli::parse();
+    match args.command {
+        None | Some(cli::Command::Serve) => run_server().await,
+        Some(cli::Command::OidcClient { action }) => {
+            cli::handle_oidc_client(action);
+            Ok(())
+        }
+    }
+}
+
+async fn run_server() -> anyhow::Result<()> {
     println!("🚀 Starting ZID CAS Server...");
 
     // Read configuration from environment variables
@@ -37,7 +50,8 @@ async fn main() -> anyhow::Result<()> {
 
     // Storage backend configuration
     // Options: "postgres" (default) or "redis" for sessions/tickets
-    let session_storage = std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "postgres".to_string());
+    let session_storage =
+        std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "postgres".to_string());
     let ticket_storage = std::env::var("TICKET_STORAGE").unwrap_or_else(|_| "postgres".to_string());
     let credentials_storage =
         std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());

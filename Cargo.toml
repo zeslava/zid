@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+clap = { version = "4", features = ["derive"] }
 argon2 = "0.5"
 axum = { version = "0.8.7", features = ["macros"] }
 postgres = "0.19"
@@ -31,6 +32,8 @@ hmac = "0.12"
 jsonwebtoken = "9"
 serde_yaml = "0.9"
 base64 = "0.22"
+# Интерактивный ввод в CLI
+inquire = "0.7"
 # Только чтение PEM публичного ключа; без default — меньше зависимостей
 rsa = { version = "0.9", default-features = false, features = ["pem"] }
 

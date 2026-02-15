@@ -11,19 +11,19 @@ pub struct FileClientStore {
     clients: HashMap<String, OAuthClient>,
 }
 
-#[derive(serde::Deserialize)]
-struct ClientsFile {
-    clients: Vec<ClientEntry>,
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ClientsFile {
+    pub clients: Vec<ClientEntry>,
 }
 
-#[derive(serde::Deserialize)]
-struct ClientEntry {
-    id: String,
-    #[serde(default)]
-    secret: Option<String>,
-    #[serde(default)]
-    redirect_uris: Option<Vec<String>>,
-    grant_types: Vec<String>,
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ClientEntry {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redirect_uris: Option<Vec<String>>,
+    pub grant_types: Vec<String>,
 }
 
 impl FileClientStore {
@@ -32,7 +32,10 @@ impl FileClientStore {
     pub fn from_path(path: &Path) -> Result<Self, Error> {
         let content = fs::read_to_string(path)
             .map_err(|e| Error::Internal(format!("OIDC clients file: {e}")))?;
-        let ext = path.extension().and_then(|e| e.to_str()).map(|s| s.to_lowercase());
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|s| s.to_lowercase());
         if ext.as_deref() != Some("yaml") && ext.as_deref() != Some("yml") {
             return Err(Error::InvalidRequest(
                 "OIDC clients file: use .yaml or .yml".to_string(),
