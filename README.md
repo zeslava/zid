@@ -388,9 +388,3 @@ E2E тест OIDC (discovery, client_credentials, jwks):
 - `docs/TELEGRAM_LOGIN.md` — интеграция Telegram Login
 - `docs/OIDC_TESTING.md` — OIDC/OAuth 2.0: настройка, тесты curl, Authorization Code flow
 - `docs/FREEBSD_SETUP.md` — деплой на FreeBSD
-
----
-
-## License
-
-MIT
