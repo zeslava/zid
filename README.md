@@ -68,6 +68,7 @@ curl -s http://localhost:5555/health
 |------:|----------|----------|------------|
 | GET   | `/` | Browser | HTML форма логина (поддерживает `return_to`) |
 | POST  | `/` | Browser | submit формы логина (`application/x-www-form-urlencoded`) |
+| POST  | `/continue` | Browser | подтвердить продолжение как текущий пользователь (SSO) |
 | GET   | `/register` | Browser | HTML форма регистрации |
 | POST  | `/register` | Browser | submit регистрации (`application/x-www-form-urlencoded`) |
 | POST  | `/login` | API | логин JSON → ticket (+опционально redirect_url) |
@@ -75,6 +76,16 @@ curl -s http://localhost:5555/health
 | POST  | `/verify` | Backend | one-time verify ticket → user info |
 | POST  | `/logout` | Backend/API | удаление сессии (по `session_id`) |
 | GET   | `/health` | Ops | health check |
+
+### OIDC/OAuth 2.0 endpoints (при `OIDC_ENABLED=true`)
+
+| Метод | Endpoint | Описание |
+|------:|----------|----------|
+| GET   | `/.well-known/openid-configuration` | Discovery (метаданные сервера) |
+| GET   | `/oauth/authorize` | Authorization endpoint (code flow) |
+| POST  | `/oauth/token` | Token endpoint (обмен code на токены, client_credentials) |
+| GET   | `/oauth/userinfo` | UserInfo (Bearer access_token в заголовке `Authorization`) |
+| GET   | `/oauth/jwks` | JWKS (публичные ключи для верификации JWT) |
 
 ---
 
@@ -287,6 +298,13 @@ ZID_COOKIE_SECURE=auto        # auto (по умолчанию) / true / false
 SESSION_STORAGE=postgres      # postgres (по умолчанию) или redis
 TICKET_STORAGE=postgres       # postgres (по умолчанию) или redis
 CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
+
+# OIDC/OAuth 2.0 (опционально; по умолчанию включён, при отсутствии конфига/ключей — запуск без OIDC)
+# OIDC_ENABLED=true
+# OIDC_ISSUER=http://localhost:5555
+# OIDC_CLIENTS_FILE=oidc_clients.yaml
+# OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
+# OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
 ```
 
 ### Про storage
@@ -296,6 +314,38 @@ CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
 - `CREDENTIALS_STORAGE`
   - `postgres` (по умолчанию): credentials в PostgreSQL
   - `redis`: альтернативный вариант
+
+---
+
+## OIDC/OAuth 2.0
+
+ZID поддерживает OIDC/OAuth 2.0 (Authorization Code + PKCE, Client Credentials).
+
+OIDC **включён по умолчанию**. Если файл клиентов или JWT-ключи не настроены, сервер запускается без OIDC (endpoints вернут 503). Чтобы отключить явно: `OIDC_ENABLED=false`.
+
+### Быстрый старт OIDC
+
+1. Сгенерировать RSA-ключи:
+   ```bash
+   openssl genrsa -out oidc_jwt_private.pem 2048
+   openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
+   ```
+
+2. Скопировать файл клиентов:
+   ```bash
+   cp oidc_clients.example.yaml oidc_clients.yaml
+   ```
+
+3. Задать переменные окружения:
+   ```bash
+   OIDC_ENABLED=true
+   OIDC_ISSUER=http://localhost:5555
+   OIDC_CLIENTS_FILE=oidc_clients.yaml
+   OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
+   OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
+   ```
+
+Подробности и примеры curl: `docs/OIDC_TESTING.md`
 
 ---
 
@@ -326,16 +376,18 @@ E2E тест (регистрация → логин → verify):
 ./scripts/test.sh
 ```
 
+E2E тест OIDC (discovery, client_credentials, jwks):
+```bash
+./scripts/test-oidc.sh
+```
+
 ---
 
 ## Документация
 
 - `docs/TELEGRAM_LOGIN.md` — интеграция Telegram Login
-- `docs/API_REFERENCE.md` — полный API
-- `docs/SECURITY.md` — безопасность
-- `docs/TICKET_VERIFICATION.md` — детали верификации тикетов
-- `DOCKER.md` — Docker deployment
-- `QUICKSTART.md` — быстрый старт
+- `docs/OIDC_TESTING.md` — OIDC/OAuth 2.0: настройка, тесты curl, Authorization Code flow
+- `docs/FREEBSD_SETUP.md` — деплой на FreeBSD
 
 ---
 
