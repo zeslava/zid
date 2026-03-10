@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-/// Business-level errors for the ZID CAS system
+/// Business-level errors for the ZID system
 #[derive(Debug, Clone)]
 pub enum Error {
     /// Authentication failed (invalid credentials, user not found, etc.)

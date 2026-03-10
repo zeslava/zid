@@ -118,7 +118,7 @@ pub async fn login_form(
                         </style>
                     </head>
                     <body>
-                        <h1>ZID CAS Login</h1>
+                        <h1>ZID Login</h1>
                         <div class="card">
                             <p class="muted">You're already signed in.</p>
 
@@ -217,7 +217,7 @@ pub async fn login_form(
             </style>
         </head>
         <body>
-            <h1>ZID CAS Login</h1>
+            <h1>ZID Login</h1>
             <form method="post" action="/">
                 <input type="text" name="username" placeholder="Username" required />
                 <input type="password" name="password" placeholder="Password" required />

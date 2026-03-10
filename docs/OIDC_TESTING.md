@@ -1,30 +1,30 @@
-# Тестирование OIDC/OAuth 2.0
+# OIDC/OAuth 2.0 Testing
 
-OIDC/OAuth 2.0 **включён по умолчанию**. Если при старте нет файла клиентов или JWT-ключей, сервер выведет предупреждение и запустится без OIDC. Чтобы отключить OIDC явно: `OIDC_ENABLED=false`.
+OIDC/OAuth 2.0 is **enabled by default**. If the client config file or JWT keys are missing at startup, the server logs a warning and starts without OIDC. To explicitly disable OIDC: `OIDC_ENABLED=false`.
 
-**Issuer** — URL сервера авторизации (ZID), по которому клиенты обращаются к discovery и проверяют JWT. Реальный домен не обязателен: для локальной разработки достаточно `http://localhost:5555`; для продакшена обычно задают реальный домен с HTTPS (`https://zid.example.com`). Главное — issuer должен быть тем адресом, по которому клиенты реально обращаются к ZID. Если `OIDC_ISSUER` не задан, при `SERVER_HOST=0.0.0.0` подставляется `http://localhost:5555`.
+**Issuer** — the authorization server (ZID) URL used by clients for discovery and JWT verification. A real domain is not required: `http://localhost:5555` works for local development; for production use a real domain with HTTPS (`https://zid.example.com`). The key requirement is that the issuer must be the address clients actually use to reach ZID. If `OIDC_ISSUER` is not set and `SERVER_HOST=0.0.0.0`, it defaults to `http://localhost:5555`.
 
-## Подготовка
+## Setup
 
-### 1. Сгенерировать RSA-ключи для JWT
+### 1. Generate RSA keys for JWT
 
 ```bash
-# Приватный ключ (2048 бит)
+# Private key (2048 bit)
 openssl genrsa -out oidc_jwt_private.pem 2048
 
-# Публичный ключ из приватного
+# Public key from private
 openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
 ```
 
-### 2. Создать конфиг клиентов
+### 2. Create client config
 
-Скопировать пример и при необходимости отредактировать:
+Copy the example and edit as needed:
 
 ```bash
 cp oidc_clients.example.yaml oidc_clients.yaml
 ```
 
-Для локального теста с `redirect_uri` на этот же сервер можно указать:
+For local testing with `redirect_uri` pointing to the same server:
 
 ```toml
 [[clients]]
@@ -39,9 +39,9 @@ secret = "machine-secret"
 grant_types = ["client_credentials"]
 ```
 
-### 3. Запуск с OIDC
+### 3. Start with OIDC
 
-Локально (PostgreSQL и Redis должны быть запущены):
+Locally (PostgreSQL and Redis must be running):
 
 ```bash
 export OIDC_ENABLED=true
@@ -49,11 +49,11 @@ export OIDC_ISSUER=http://localhost:5555
 export OIDC_CLIENTS_FILE=oidc_clients.yaml
 export OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
 export OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
-# Остальные переменные — по .env или дефолтам
+# Other variables — from .env or defaults
 cargo run
 ```
 
-Или через один вызов:
+Or as a single command:
 
 ```bash
 OIDC_ENABLED=true OIDC_ISSUER=http://localhost:5555 \
@@ -65,9 +65,9 @@ OIDC_ENABLED=true OIDC_ISSUER=http://localhost:5555 \
 
 ---
 
-## Проверка без браузера (curl)
+## Testing without a browser (curl)
 
-Базовый URL для примеров: `BASE=http://localhost:5555`.
+Base URL for examples: `BASE=http://localhost:5555`.
 
 ### Discovery
 
@@ -75,7 +75,7 @@ OIDC_ENABLED=true OIDC_ISSUER=http://localhost:5555 \
 curl -s "$BASE/.well-known/openid-configuration" | jq .
 ```
 
-Ожидается JSON с `issuer`, `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, `scopes_supported` (openid, profile, email), `grant_types_supported`.
+Expected: JSON with `issuer`, `authorization_endpoint`, `token_endpoint`, `userinfo_endpoint`, `jwks_uri`, `scopes_supported` (openid, profile, email), `grant_types_supported`.
 
 ### Client Credentials (machine-to-machine)
 
@@ -87,7 +87,7 @@ curl -s -X POST "$BASE/oauth/token" \
   -d "client_secret=machine-secret"
 ```
 
-Ожидается JSON с `access_token`, `token_type`, `expires_in`.
+Expected: JSON with `access_token`, `token_type`, `expires_in`.
 
 ### JWKS
 
@@ -95,57 +95,57 @@ curl -s -X POST "$BASE/oauth/token" \
 curl -s "$BASE/oauth/jwks" | jq .
 ```
 
-Ожидается JSON с `keys` (массив JWK, поле `n`, `e` для RSA).
+Expected: JSON with `keys` (array of JWK, fields `n`, `e` for RSA).
 
-### UserInfo (после получения токена)
+### UserInfo (after obtaining a token)
 
-По OIDC/OAuth 2.0 (RFC 6750) userinfo вызывается с **access_token** в заголовке `Authorization: Bearer`. ZID также принимает **id_token** в том же заголовке и токен в query-параметре `access_token` (для совместимости).
+Per OIDC/OAuth 2.0 (RFC 6750), userinfo is called with an **access_token** in the `Authorization: Bearer` header. ZID also accepts an **id_token** in the same header and a token in the `access_token` query parameter (for compatibility).
 
-Сначала получить токен (client_credentials или authorization_code), затем:
+First obtain a token (client_credentials or authorization_code), then:
 
 ```bash
-TOKEN="<access_token из предыдущего шага>"
+TOKEN="<access_token from previous step>"
 curl -s "$BASE/oauth/userinfo" -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-Или с query-параметром:
+Or with a query parameter:
 
 ```bash
 curl -s "$BASE/oauth/userinfo?access_token=$TOKEN" | jq .
 ```
 
-**Возвращаемые claims** зависят от scope и типа токена:
+**Returned claims** depend on scope and token type:
 
 | Scope   | userinfo / id_token |
 |---------|----------------------|
 | —       | sub                  |
 | profile | sub, name, preferred_username |
-| email   | sub, name, preferred_username, email (при отсутствии хранимого email — `username@zid.local`) |
+| email   | sub, name, preferred_username, email (if no stored email — `username@zid.local`) |
 
-Для client_credentials в ответе будет только `sub` (client_id). Для authorization_code при scope openid/profile/email — соответствующие claims.
+For client_credentials the response contains only `sub` (client_id). For authorization_code with scope openid/profile/email — the corresponding claims.
 
-**id_token** (JWT при scope openid): содержит sub, aud, exp, iat, при scope profile — name, preferred_username, при scope email — claim email. Relying Party может брать email из id_token без вызова userinfo.
+**id_token** (JWT with scope openid): contains sub, aud, exp, iat; with scope profile — name, preferred_username; with scope email — email claim. The Relying Party can extract email from the id_token without calling userinfo.
 
-**Scopes** (в discovery `scopes_supported`): `openid` — выдача id_token; `profile` — name, preferred_username в id_token и userinfo; `email` — claim email в id_token и в userinfo (значение типа username@zid.local при отсутствии хранимого email). Поведение соответствует OIDC Core и OAuth 2.0 Bearer Token Usage.
+**Scopes** (in discovery `scopes_supported`): `openid` — id_token issuance; `profile` — name, preferred_username in id_token and userinfo; `email` — email claim in id_token and userinfo (value like username@zid.local if no stored email). Behavior follows OIDC Core and OAuth 2.0 Bearer Token Usage.
 
 ---
 
-## Authorization Code flow (с браузером)
+## Authorization Code flow (with browser)
 
-1. Зарегистрировать пользователя (если ещё нет):  
-   `POST /register` с формой или через существующий `scripts/test.sh`.
+1. Register a user (if not yet):
+   `POST /register` with a form or via the existing `scripts/test.sh`.
 
-2. Открыть в браузере URL авторизации (подставьте свой `redirect_uri` из `oidc_clients.yaml`):
+2. Open the authorization URL in a browser (substitute your `redirect_uri` from `oidc_clients.yaml`):
 
    ```
    http://localhost:5555/oauth/authorize?response_type=code&client_id=web-app&redirect_uri=http://localhost:5555/callback&scope=openid%20profile%20email&state=random123
    ```
 
-3. Если вы не залогинены, произойдёт редирект на форму логина (`/?return_to=...`). Введите логин/пароль и отправьте форму.
+3. If not logged in, you'll be redirected to the login form (`/?return_to=...`). Enter username/password and submit.
 
-4. После успешного входа — редирект на `redirect_uri?code=...&state=random123`. Скопируйте значение `code` из адресной строки.
+4. After successful login — redirect to `redirect_uri?code=...&state=random123`. Copy the `code` value from the address bar.
 
-5. Обмен code на токены (подставьте реальные `code` и `redirect_uri`):
+5. Exchange code for tokens (substitute the actual `code` and `redirect_uri`):
 
    ```bash
    curl -s -X POST "http://localhost:5555/oauth/token" \
@@ -154,26 +154,26 @@ curl -s "$BASE/oauth/userinfo?access_token=$TOKEN" | jq .
      -d "client_id=web-app" \
      -d "client_secret=web-secret" \
      -d "redirect_uri=http://localhost:5555/callback" \
-     -d "code=ВСТАВЬТЕ_КОД_ИЗ_РЕДИРЕКТА"
+     -d "code=PASTE_CODE_FROM_REDIRECT"
    ```
 
-   Ответ: `access_token`, `id_token` (при scope openid; при scope email в id_token будет claim email), `expires_in`.
+   Response: `access_token`, `id_token` (with scope openid; with scope email the id_token will contain the email claim), `expires_in`.
 
-6. Проверить UserInfo (рекомендуется access_token в заголовке, по OIDC):
+6. Check UserInfo (access_token in header is recommended per OIDC):
 
    ```bash
    curl -s "http://localhost:5555/oauth/userinfo" \
-     -H "Authorization: Bearer ВСТАВЬТЕ_ACCESS_TOKEN"
+     -H "Authorization: Bearer PASTE_ACCESS_TOKEN"
    ```
 
 ---
 
-## Автоматический скрипт (без браузера)
+## Automated script (no browser)
 
-Запуск:
+Run:
 
 ```bash
 ./scripts/test-oidc.sh
 ```
 
-Скрипт проверяет: discovery, client_credentials, jwks, при необходимости — наличие пользователя и окружения. Authorization Code flow в скрипт не входит (нужен браузер или ручные шаги выше).
+The script checks: discovery, client_credentials, jwks, and optionally — user existence and environment. Authorization Code flow is not included in the script (requires a browser or the manual steps above).

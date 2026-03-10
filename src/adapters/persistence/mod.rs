@@ -7,3 +7,7 @@ pub mod redis_credentials;
 pub mod redis_session;
 pub mod redis_ticket;
 pub mod redis_user;
+pub mod sqlite_credentials;
+pub mod sqlite_session;
+pub mod sqlite_ticket;
+pub mod sqlite_user;

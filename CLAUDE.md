@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ZID is a CAS-like SSO authentication server written in Rust with optional OIDC/OAuth 2.0 support. Users log in → ZID issues a one-time ticket → client app verifies ticket via `/verify` → gets `user_id`/`username`.
+ZID is a lightweight self-hosted identity provider (IdP) written in Rust. It provides CAS-style ticket authentication with optional OIDC/OAuth 2.0 support. Users log in → ZID issues a one-time ticket → client app verifies ticket via `/verify` → gets `user_id`/`username`.
 
 ## Build & Development Commands
 
@@ -32,7 +32,7 @@ task oidc-gen-keys            # generate RSA PEM key pair
 ./scripts/test-oidc.sh        # OIDC flow
 ```
 
-Environment is configured via `.env` (see `.env.example`). Storage backends (PostgreSQL or Redis) are switchable per-entity via `SESSION_STORAGE`, `TICKET_STORAGE`, `CREDENTIALS_STORAGE` env vars.
+Environment is configured via `.env` (see `.env.example`). Storage backends (PostgreSQL, Redis, or SQLite) are switchable per-entity via `SESSION_STORAGE`, `TICKET_STORAGE`, `CREDENTIALS_STORAGE` env vars.
 
 ## Architecture: Hexagonal (Ports & Adapters)
 
@@ -51,7 +51,8 @@ adapters/persistence/ (PostgresXxx / RedisXxx repositories)
 - **`src/ports/`** — Domain traits and entities. `ZidService` (core auth), `OidcService` (OAuth 2.0), repository traits, `Error` enum.
 - **`src/application/`** — Business logic. `ZidApp` implements `ZidService`, `OidcApp` implements `OidcService`, `oidc_jwt.rs` handles RS256 JWT signing/JWKS.
 - **`src/adapters/http/`** — Axum handlers, routes, DTOs, SSO cookie management. `RouterState` holds `Arc<dyn ZidService>` + optional `Arc<dyn OidcService>`.
-- **`src/adapters/persistence/`** — PostgreSQL (r2d2 sync pool) and Redis implementations for each repository.
+- **`src/adapters/persistence/`** — PostgreSQL (r2d2 sync pool), Redis, and SQLite (r2d2_sqlite) implementations for each repository.
+- **`src/adapters/telegram/`** — Telegram Login Widget integration.
 - **`src/main.rs`** — DI wiring, env var reading, server startup.
 
 ## Code Conventions
@@ -64,6 +65,24 @@ adapters/persistence/ (PostgresXxx / RedisXxx repositories)
 - **Error handling**: Domain errors in `ports::error::Error`, mapped to HTTP status codes via `HttpError` in handlers
 - **Tests with infra deps**: Mark `#[ignore]`, place in `#[cfg(test)] mod tests` at end of file
 - **OIDC is optional**: Routes return 503 if OIDC is not configured (missing keys/clients/Redis)
+
+## Key Environment Variables
+
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `SESSION_STORAGE` | `postgres` (default), `redis`, `sqlite` | Session storage backend |
+| `TICKET_STORAGE` | `postgres` (default), `redis`, `sqlite` | Ticket storage backend |
+| `CREDENTIALS_STORAGE` | `postgres` (default), `redis`, `sqlite` | Credentials storage backend |
+| `SQLITE_PATH` | file path | SQLite database file (default: `zid.db`) |
+| `TRUSTED_DOMAINS` | comma-separated | Trusted domains for return_to |
+| `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure flag for SSO cookie |
+| `OIDC_ENABLED` | `true` (default), `false` | Enable OIDC/OAuth 2.0 |
+| `OIDC_ISSUER` | URL | Issuer base URL (discovery, JWT) |
+| `OIDC_CLIENTS_FILE` | path | YAML client config file |
+| `OIDC_JWT_PRIVATE_KEY` | path to PEM | Private key for JWT signing |
+| `OIDC_JWT_PUBLIC_KEY` | path to PEM | Public key (JWKS, verification) |
+
+Full list in `.env.example`.
 
 ## Constraints
 

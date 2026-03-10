@@ -1,120 +1,228 @@
-# ZID CAS Server
+# ZID
 
-ZID — простой CAS-подобный сервер аутентификации на Rust: пользователь логинится в ZID, ZID выдаёт **one-time ticket**, а ваше приложение подтверждает ticket через `/verify` и получает идентичность пользователя.
+ZID is a lightweight, self-hosted identity provider (IdP) built for homelabs, small services, and internal tools.
 
-## Cookies / SSO (важно для продакшена и локальной разработки)
+It implements a CAS-style authentication flow: users log in to ZID, receive a one-time ticket, and your application verifies that ticket via a simple `/verify` call to obtain the user's identity. No complex token management on your side — just redirect, verify, done.
 
-ZID использует SSO-cookie `zid_sso`, чтобы "узнавать" пользователя и предлагать **Continue** без повторного ввода логина/пароля.
+ZID also supports optional OpenID Connect / OAuth 2.0 for applications that need standard OIDC integration.
 
-### Secure cookie и локальная разработка
+## Features
 
-Современные браузеры **не принимают cookie с атрибутом `Secure` по HTTP**. Поэтому:
-- в проде ZID должен работать за HTTPS (и cookie должна быть `Secure`)
-- локально (если ты запускаешь ZID по `http://localhost:5555`) нужно отключить `Secure`, иначе SSO "не запомнится"
+- Single binary deployment
+- CAS-style one-time ticket authentication
+- Optional OpenID Connect / OAuth 2.0 (Authorization Code + PKCE, Client Credentials)
+- Browser login flow with SSO cookies (login once, access multiple services)
+- JSON API for programmatic authentication
+- Telegram login support
+- PostgreSQL, SQLite, and Redis storage backends
+- Docker deployment
 
-Это управляется переменной окружения `ZID_COOKIE_SECURE`:
+## Why ZID?
 
-- `auto` (по умолчанию): ZID сам определяет HTTPS по заголовкам (`X-Forwarded-Proto=https` / `Forwarded: proto=https`)
-- `true` / `1`: всегда ставить `Secure`
-- `false` / `0`: никогда не ставить `Secure` (удобно для локальной разработки по HTTP)
+ZID focuses on simplicity:
 
-Рекомендации:
-- **prod**: `ZID_COOKIE_SECURE=auto` (или `true`) + HTTPS + прокси должен прокидывать `X-Forwarded-Proto=https`
-- **local http**: `ZID_COOKIE_SECURE=false`
+- minimal setup
+- predictable authentication flow
+- small deployment footprint
+- easy integration with small services
 
-Как это работает на практике:  
-1) отправляешь пользователя на ZID (или используешь JSON API),  
-2) ZID возвращает ticket (через редирект или прямо в ответе),  
-3) твоё приложение обменивает ticket на user info через `/verify`.
+Most identity providers (Keycloak, Authentik, Authelia) are powerful but come with significant operational complexity — large deployments, steep learning curves, and resource overhead.
+
+ZID takes a different approach: minimal setup, simple integration, and just enough features for smaller deployments. If you run a homelab, a handful of internal services, or a small project that needs shared authentication — ZID gets out of your way.
 
 ---
 
-## Быстрый ориентир (2 минуты)
+## How ZID Works
 
-### В браузере (самый частый сценарий)
-1. Ты переводишь пользователя на:
+### Browser flow (most common)
+
+```mermaid
+sequenceDiagram
+    participant User as User Browser
+    participant App as Application
+    participant ZID as ZID Server
+
+    User->>App: Access protected resource
+    App->>User: 302 → ZID /?return_to=APP_URL
+    User->>ZID: Open login form
+    User->>ZID: POST / (username + password)
+    ZID->>User: 302 → APP_URL?ticket=TICKET
+    User->>App: Follow redirect with ticket
+    App->>ZID: POST /verify {ticket, service}
+    ZID->>App: {user_id, username, session_id}
+    App->>User: Authenticated
+```
+
+1. Redirect the user to:
    - `GET http://zid-host:5555/?return_to=https://yourapp.com/callback`
-2. Пользователь логинится.
-3. ZID делает редирект на:
+2. User logs in.
+3. ZID redirects to:
    - `https://yourapp.com/callback?ticket=<TICKET>`
-4. Твой backend вызывает:
-   - `POST http://zid-host:5555/verify` с `{ "ticket": "...", "service": "https://yourapp.com/callback" }`
-5. Получаешь `{ user_id, username, session_id }`, создаёшь свою сессию/куку.
+4. Your backend calls:
+   - `POST http://zid-host:5555/verify` with `{ "ticket": "...", "service": "https://yourapp.com/callback" }`
+5. You receive `{ user_id, username, session_id }` and create your own session/cookie.
 
-### Через API (когда не нужен UI/redirect)
-1. Клиент вызывает `POST /login` (JSON) **без** `return_to`.
-2. ZID возвращает `{ "ticket": "..." }`.
-3. Ты вызываешь `/verify` и получаешь пользователя.
+### JSON API flow (no UI/redirect needed)
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant ZID as ZID Server
+
+    Client->>ZID: POST /login {username, password}
+    ZID->>Client: {ticket}
+    Client->>ZID: POST /verify {ticket, service}
+    ZID->>Client: {user_id, username, session_id}
+```
+
+1. Client calls `POST /login` (JSON) **without** `return_to`.
+2. ZID returns `{ "ticket": "..." }`.
+3. You call `/verify` and get the user identity.
 
 ---
 
-## Quick Start (Docker)
+## Architecture
+
+```mermaid
+graph TB
+    Browser[User Browser]
+    App[Your Application]
+    ZID[ZID Server]
+    PG[(PostgreSQL)]
+    Redis[(Redis<br/><i>optional</i>)]
+    OIDC[OIDC Client App]
+
+    Browser -->|login / SSO cookie| ZID
+    App -->|/verify ticket| ZID
+    OIDC -->|/oauth/authorize<br/>/oauth/token| ZID
+    ZID --> PG
+    ZID -.-> Redis
+    App -->|redirect to /login| Browser
+```
+
+---
+
+## Quick Start
+
+### Docker
 
 ```bash
 docker compose up -d
-# ZID будет доступен на http://localhost:5555
+# ZID will be available at http://localhost:5555
 ```
 
-Проверка здоровья:
+### Binary
+
+```bash
+# Download the latest release for your platform
+chmod +x zid
+./zid
+```
+
+> Requires PostgreSQL. See [Configuration](#configuration) for environment variables.
+
+Health check:
 ```bash
 curl -s http://localhost:5555/health
 ```
 
 ---
 
-## Публичные endpoints
+## SQLite Support
 
-| Метод | Endpoint | Для кого | Что делает |
-|------:|----------|----------|------------|
-| GET   | `/` | Browser | HTML форма логина (поддерживает `return_to`) |
-| POST  | `/` | Browser | submit формы логина (`application/x-www-form-urlencoded`) |
-| POST  | `/continue` | Browser | подтвердить продолжение как текущий пользователь (SSO) |
-| GET   | `/register` | Browser | HTML форма регистрации |
-| POST  | `/register` | Browser | submit регистрации (`application/x-www-form-urlencoded`) |
-| POST  | `/login` | API | логин JSON → ticket (+опционально redirect_url) |
-| POST  | `/login/telegram` | API | Telegram login JSON → ticket (+опционально redirect_url) |
-| POST  | `/verify` | Backend | one-time verify ticket → user info |
-| POST  | `/logout` | Backend/API | удаление сессии (по `session_id`) |
-| GET   | `/health` | Ops | health check |
+ZID supports SQLite as a storage backend — ideal for development, homelabs, and single-node deployments where PostgreSQL is overkill.
 
-### OIDC/OAuth 2.0 endpoints (при `OIDC_ENABLED=true`)
+To run ZID with SQLite (no external database required):
 
-| Метод | Endpoint | Описание |
-|------:|----------|----------|
-| GET   | `/.well-known/openid-configuration` | Discovery (метаданные сервера) |
-| GET   | `/oauth/authorize` | Authorization endpoint (code flow) |
-| POST  | `/oauth/token` | Token endpoint (обмен code на токены, client_credentials) |
-| GET   | `/oauth/userinfo` | UserInfo (Bearer access_token в заголовке `Authorization`) |
-| GET   | `/oauth/jwks` | JWKS (публичные ключи для верификации JWT) |
+```bash
+export SESSION_STORAGE=sqlite
+export TICKET_STORAGE=sqlite
+export CREDENTIALS_STORAGE=sqlite
+export SQLITE_PATH=zid.db
+./zid
+```
+
+ZID creates the database file and all tables automatically on first start.
+
+SQLite uses WAL mode and foreign keys by default. For production deployments with higher concurrency, PostgreSQL is recommended.
 
 ---
 
-## Сценарий: Логин через браузер с редиректом (return_to)
+## Cookies / SSO
 
-### 1) Отправь пользователя на страницу ZID
+ZID uses an SSO cookie (`zid_sso`) to recognize returning users and offer **Continue** without re-entering credentials.
 
-Открой в браузере:
+### Secure cookie and local development
+
+Modern browsers **reject cookies with the `Secure` attribute over plain HTTP**. Therefore:
+- in production ZID should run behind HTTPS (cookie must be `Secure`)
+- locally (`http://localhost:5555`) you need to disable `Secure`, otherwise SSO won't persist
+
+Controlled via `ZID_COOKIE_SECURE`:
+
+- `auto` (default): ZID detects HTTPS from headers (`X-Forwarded-Proto=https` / `Forwarded: proto=https`)
+- `true` / `1`: always set `Secure`
+- `false` / `0`: never set `Secure` (useful for local HTTP development)
+
+Recommendations:
+- **prod**: `ZID_COOKIE_SECURE=auto` (or `true`) + HTTPS + proxy must forward `X-Forwarded-Proto=https`
+- **local http**: `ZID_COOKIE_SECURE=false`
+
+---
+
+## Public Endpoints
+
+| Method | Endpoint | Consumer | Description |
+|-------:|----------|----------|-------------|
+| GET    | `/` | Browser | HTML login form (supports `return_to`) |
+| POST   | `/` | Browser | Login form submit (`application/x-www-form-urlencoded`) |
+| POST   | `/continue` | Browser | Continue as current user (SSO) |
+| GET    | `/register` | Browser | HTML registration form |
+| POST   | `/register` | Browser | Registration submit (`application/x-www-form-urlencoded`) |
+| POST   | `/login` | API | JSON login → ticket (+optional redirect_url) |
+| POST   | `/login/telegram` | API | Telegram login JSON → ticket (+optional redirect_url) |
+| POST   | `/verify` | Backend | One-time ticket verification → user info |
+| POST   | `/logout` | Backend/API | Session deletion (by `session_id`) |
+| GET    | `/health` | Ops | Health check |
+
+### OIDC/OAuth 2.0 endpoints (when `OIDC_ENABLED=true`)
+
+| Method | Endpoint | Description |
+|-------:|----------|-------------|
+| GET   | `/.well-known/openid-configuration` | Discovery (server metadata) |
+| GET   | `/oauth/authorize` | Authorization endpoint (code flow) |
+| POST  | `/oauth/token` | Token endpoint (exchange code for tokens, client_credentials) |
+| GET   | `/oauth/userinfo` | UserInfo (Bearer access_token via `Authorization` header) |
+| GET   | `/oauth/jwks` | JWKS (public keys for JWT verification) |
+
+---
+
+## Browser Login with Redirect (return_to)
+
+### 1) Send the user to ZID
+
+Open in browser:
 
 `http://localhost:5555/?return_to=https://yourapp.com/callback`
 
-> `return_to` — URL твоего приложения (куда ZID вернёт пользователя).
-> Он должен проходить проверку trusted domains (см. `TRUSTED_DOMAINS` ниже).
+> `return_to` — your application's URL (where ZID will redirect the user back).
+> It must pass trusted domain validation (see `TRUSTED_DOMAINS` below).
 
-### 2) Пользователь логинится
+### 2) User logs in
 
-Форма отправляется на `POST /` (это делает браузер).
+The form submits to `POST /` (handled by the browser).
 
-### 3) ZID редиректит обратно
+### 3) ZID redirects back
 
-ZID вернёт пользователя на:
+ZID redirects the user to:
 
 `https://yourapp.com/callback?ticket=<uuid>`
 
-Ticket одноразовый и короткоживущий.
+The ticket is one-time and short-lived.
 
-### 4) Твоё приложение подтверждает ticket
+### 4) Your application verifies the ticket
 
-Запрос:
+Request:
 ```bash
 curl -X POST http://localhost:5555/verify \
   -H "Content-Type: application/json" \
@@ -124,7 +232,7 @@ curl -X POST http://localhost:5555/verify \
   }'
 ```
 
-Ответ (пример):
+Response (example):
 ```json
 {
   "success": true,
@@ -134,31 +242,31 @@ curl -X POST http://localhost:5555/verify \
 }
 ```
 
-Дальше обычно:
-- создаёшь свою сессию (cookie/JWT) и
-- редиректишь пользователя в уже защищённый раздел приложения.
+Next steps:
+- Create your own session (cookie/JWT) and
+- Redirect the user to the protected area of your application.
 
 ---
 
-## Сценарий: Логин через браузер без return_to (без редиректа)
+## Browser Login without return_to (no redirect)
 
-Если `return_to` **не задан**, редиректа **не будет**.
+If `return_to` is **not set**, there will be **no redirect**.
 
-### Пример:
+### Example:
 
-Открой: `http://localhost:5555/`
+Open: `http://localhost:5555/`
 
-После логина ZID вернёт HTML-страницу успеха, где будет показан ticket.
+After login, ZID returns an HTML success page displaying the ticket.
 
-Это удобно для ручной отладки и простых интеграций.
+Useful for manual debugging and simple integrations.
 
 ---
 
-## Сценарий: Логин через JSON API (без UI)
+## JSON API Login (no UI)
 
-### Логин без return_to (без редиректа)
+### Login without return_to (no redirect)
 
-Запрос:
+Request:
 ```bash
 curl -X POST http://localhost:5555/login \
   -H "Content-Type: application/json" \
@@ -168,18 +276,18 @@ curl -X POST http://localhost:5555/login \
   }'
 ```
 
-Ответ:
+Response:
 ```json
 {
   "ticket": "4b53f154-3747-463c-9a57-6e856edf4f3a"
 }
 ```
 
-Дальше подтверждаешь ticket через `/verify` так же, как в Flow 1.
+Then verify the ticket via `/verify` as described above.
 
-### Логин с return_to (если тебе удобен готовый redirect_url)
+### Login with return_to (get a ready-made redirect_url)
 
-Запрос:
+Request:
 ```bash
 curl -X POST http://localhost:5555/login \
   -H "Content-Type: application/json" \
@@ -190,7 +298,7 @@ curl -X POST http://localhost:5555/login \
   }'
 ```
 
-Ответ:
+Response:
 ```json
 {
   "ticket": "7ee2015f-6112-4db7-adac-d46d03ece91f",
@@ -198,16 +306,16 @@ curl -X POST http://localhost:5555/login \
 }
 ```
 
-> `redirect_url` опционален и возвращается только если `return_to` задан и не пустой.
+> `redirect_url` is optional and only returned when `return_to` is provided and non-empty.
 
 ---
 
-## Сценарий: Регистрация пользователя
+## User Registration
 
-### Через браузер
-Открой: `http://localhost:5555/register`
+### Via browser
+Open: `http://localhost:5555/register`
 
-### Через curl (form)
+### Via curl (form)
 ```bash
 curl -X POST http://localhost:5555/register \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -216,56 +324,102 @@ curl -X POST http://localhost:5555/register \
 
 ---
 
-## Сценарий: Вход через Telegram
+## Telegram Login
 
-Включает вход через Telegram Widget (на странице логина) и endpoint `/login/telegram`.
+Supports login via Telegram Widget (on the login page) and the `/login/telegram` endpoint.
 
-Нужно настроить env:
+Required env vars:
 ```bash
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_BOT_USERNAME=your_bot_username
 TELEGRAM_AUTO_REGISTER=true
 ```
 
-Подробности и примеры: `docs/TELEGRAM_LOGIN.md`
+Details and examples: `docs/TELEGRAM_LOGIN.md`
 
 ---
 
-## Важные правила (чтобы не удивляться)
+## OIDC / OAuth 2.0 (optional)
+
+ZID supports OIDC/OAuth 2.0 (Authorization Code + PKCE, Client Credentials).
+
+OIDC is **enabled by default**. If the clients file or JWT keys are not configured, the server starts without OIDC (endpoints return 503). To disable explicitly: `OIDC_ENABLED=false`.
+
+### OIDC Quick Start
+
+1. Generate RSA keys:
+   ```bash
+   openssl genrsa -out oidc_jwt_private.pem 2048
+   openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
+   ```
+
+2. Copy the clients file:
+   ```bash
+   cp oidc_clients.example.yaml oidc_clients.yaml
+   ```
+
+3. Set environment variables:
+   ```bash
+   OIDC_ENABLED=true
+   OIDC_ISSUER=http://localhost:5555
+   OIDC_CLIENTS_FILE=oidc_clients.yaml
+   OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
+   OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
+   ```
+
+```mermaid
+sequenceDiagram
+    participant User as User Browser
+    participant Client as OIDC Client
+    participant ZID as ZID Server
+
+    Client->>User: Redirect → /oauth/authorize
+    User->>ZID: Authenticate (login or SSO cookie)
+    ZID->>User: 302 → callback?code=CODE
+    User->>Client: Follow redirect with authorization code
+    Client->>ZID: POST /oauth/token {code, client_id, client_secret}
+    ZID->>Client: {access_token, id_token, refresh_token}
+```
+
+Details and curl examples: `docs/OIDC_TESTING.md`
+
+---
+
+## Important Notes
 
 ### Tickets
-- **Одноразовые**: повторный `/verify` для того же ticket должен быть отклонён.
-- **TTL ~ 5 минут** (tickеты истекают быстро).
-- Ticket привязан к `service` (service URL): при `/verify` нужно передавать тот же сервис, под который ticket выдавался.
+- **One-time**: a second `/verify` for the same ticket will be rejected.
+- **TTL ~ 5 minutes** (tickets expire quickly).
+- Tickets are bound to a `service` URL: you must pass the same service to `/verify` that was used when the ticket was issued.
 
 ### return_to / trusted domains
-ZID валидирует `return_to` по списку доверенных доменов.
+ZID validates `return_to` against a list of trusted domains.
 
-Настраивается через `TRUSTED_DOMAINS`:
+Configured via `TRUSTED_DOMAINS`:
 ```bash
 TRUSTED_DOMAINS=localhost,127.0.0.1,*.local.dev,*.myapp.com,myapp.example.com
 ```
 
-Для продакшена обязательно добавь домены твоих приложений.
+In production, make sure to add your application domains.
 
 ---
 
-## Примеры ошибок (на что смотреть)
+## Common Errors
 
-### Неверный пароль
-- `POST /login` вернёт ошибку (HTTP зависит от обработчика; в HTML — 401 страница Unauthorized).
+### Wrong password
+- `POST /login` returns an error (HTTP status depends on the handler; HTML returns a 401 Unauthorized page).
 
-### Неверный return_to
-Если `return_to` не проходит проверку, логин будет отклонён. Проверь `TRUSTED_DOMAINS`.
+### Invalid return_to
+If `return_to` fails validation, login will be rejected. Check `TRUSTED_DOMAINS`.
 
-### Ticket уже использован / просрочен
-`/verify` не даст user info.
+### Ticket already used / expired
+`/verify` will not return user info.
 
 ---
 
-## Конфигурация
+## Configuration
 
-### Переменные окружения
+### Environment Variables
 
 ```bash
 # PostgreSQL
@@ -285,21 +439,23 @@ SERVER_PORT=5555
 # return_to allowlist
 TRUSTED_DOMAINS=localhost,127.0.0.1,*.local.dev,*.local,*.lan
 
-# Telegram (опционально)
+# Telegram (optional)
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_BOT_USERNAME=
 TELEGRAM_AUTO_REGISTER=true
 
 # Cookie / SSO
-# См. раздел "Cookies / SSO" выше
-ZID_COOKIE_SECURE=auto        # auto (по умолчанию) / true / false
+ZID_COOKIE_SECURE=auto        # auto (default) / true / false
 
-# Storage backend (опционально)
-SESSION_STORAGE=postgres      # postgres (по умолчанию) или redis
-TICKET_STORAGE=postgres       # postgres (по умолчанию) или redis
-CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
+# Storage backend (optional)
+SESSION_STORAGE=postgres      # postgres (default), redis, or sqlite
+TICKET_STORAGE=postgres       # postgres (default), redis, or sqlite
+CREDENTIALS_STORAGE=postgres  # postgres (default), redis, or sqlite
 
-# OIDC/OAuth 2.0 (опционально; по умолчанию включён, при отсутствии конфига/ключей — запуск без OIDC)
+# SQLite (when using sqlite storage)
+SQLITE_PATH=zid.db            # path to SQLite database file
+
+# OIDC/OAuth 2.0 (optional; enabled by default, starts without OIDC if config/keys are missing)
 # OIDC_ENABLED=true
 # OIDC_ISSUER=http://localhost:5555
 # OIDC_CLIENTS_FILE=oidc_clients.yaml
@@ -307,84 +463,56 @@ CREDENTIALS_STORAGE=postgres  # postgres (по умолчанию) или redis
 # OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
 ```
 
-### Про storage
-- `SESSION_STORAGE` / `TICKET_STORAGE`
-  - `postgres` (по умолчанию): хранение в БД
-  - `redis`: TTL «из коробки»
-- `CREDENTIALS_STORAGE`
-  - `postgres` (по умолчанию): credentials в PostgreSQL
-  - `redis`: альтернативный вариант
+### Storage
+- `SESSION_STORAGE` / `TICKET_STORAGE` / `CREDENTIALS_STORAGE`
+  - `postgres` (default): PostgreSQL storage
+  - `redis`: Redis with built-in TTL support
+  - `sqlite`: SQLite file-based storage (great for simple deployments)
 
 ---
 
-## OIDC/OAuth 2.0
-
-ZID поддерживает OIDC/OAuth 2.0 (Authorization Code + PKCE, Client Credentials).
-
-OIDC **включён по умолчанию**. Если файл клиентов или JWT-ключи не настроены, сервер запускается без OIDC (endpoints вернут 503). Чтобы отключить явно: `OIDC_ENABLED=false`.
-
-### Быстрый старт OIDC
-
-1. Сгенерировать RSA-ключи:
-   ```bash
-   openssl genrsa -out oidc_jwt_private.pem 2048
-   openssl rsa -in oidc_jwt_private.pem -pubout -out oidc_jwt_public.pem
-   ```
-
-2. Скопировать файл клиентов:
-   ```bash
-   cp oidc_clients.example.yaml oidc_clients.yaml
-   ```
-
-3. Задать переменные окружения:
-   ```bash
-   OIDC_ENABLED=true
-   OIDC_ISSUER=http://localhost:5555
-   OIDC_CLIENTS_FILE=oidc_clients.yaml
-   OIDC_JWT_PRIVATE_KEY=oidc_jwt_private.pem
-   OIDC_JWT_PUBLIC_KEY=oidc_jwt_public.pem
-   ```
-
-Подробности и примеры curl: `docs/OIDC_TESTING.md`
-
----
-
-## Docker: полезное
+## Docker
 
 ```bash
-# запуск
+# start
 docker compose up -d
 
-# логи
+# logs
 docker compose logs -f zid-app
 
-# остановка
+# stop
 docker compose down
 ```
 
-Сервисы по умолчанию:
+Default services:
 - App: `http://localhost:5555`
 - PostgreSQL: `localhost:5432`
 - Redis: `localhost:6380`
 
 ---
 
-## Тестирование
+## Testing
 
-E2E тест (регистрация → логин → verify):
+E2E test (register → login → verify):
 ```bash
 ./scripts/test.sh
 ```
 
-E2E тест OIDC (discovery, client_credentials, jwks):
+E2E test OIDC (discovery, client_credentials, jwks):
 ```bash
 ./scripts/test-oidc.sh
 ```
 
 ---
 
-## Документация
+## Documentation
 
-- `docs/TELEGRAM_LOGIN.md` — интеграция Telegram Login
-- `docs/OIDC_TESTING.md` — OIDC/OAuth 2.0: настройка, тесты curl, Authorization Code flow
-- `docs/FREEBSD_SETUP.md` — деплой на FreeBSD
+- `docs/TELEGRAM_LOGIN.md` — Telegram Login integration
+- `docs/OIDC_TESTING.md` — OIDC/OAuth 2.0 testing guide
+- `docs/FREEBSD_SETUP.md` — FreeBSD installation and setup
+
+---
+
+## License
+
+MIT

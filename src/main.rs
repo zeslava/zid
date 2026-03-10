@@ -14,7 +14,7 @@ use crate::{
         auth_code_repository::AuthCodeRepository, client_store::ClientStore,
         credentials_repository::CredentialsRepository, oidc_service::OidcService,
         session_repository::SessionRepository, ticket_repository::TicketRepository,
-        zid_service::ZidService,
+        user_repository::UserRepository, zid_service::ZidService,
     },
 };
 
@@ -36,160 +36,260 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_server() -> anyhow::Result<()> {
-    println!("🚀 Starting ZID CAS Server...");
+    println!("🚀 Starting ZID Server...");
 
     // Read configuration from environment variables
-    let pg_host = std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
-    let pg_port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
-    let pg_db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "zid".to_string());
-    let pg_user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
-    let pg_password = std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
     let server_host = std::env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let server_port = std::env::var("SERVER_PORT").unwrap_or_else(|_| "5555".to_string());
 
     // Storage backend configuration
-    // Options: "postgres" (default) or "redis" for sessions/tickets
+    // Options: "postgres" (default), "redis", or "sqlite"
     let session_storage =
         std::env::var("SESSION_STORAGE").unwrap_or_else(|_| "postgres".to_string());
     let ticket_storage = std::env::var("TICKET_STORAGE").unwrap_or_else(|_| "postgres".to_string());
     let credentials_storage =
         std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());
 
-    // Логи конфигурации подключения (без паролей)
-    println!("🔌 PostgreSQL адрес: {}:{}/{}", pg_host, pg_port, pg_db);
-    println!("🔌 Redis адрес: {}", redis_url);
     println!(
         "🔧 Хранилища: sessions={}, tickets={}, credentials={}",
         session_storage, ticket_storage, credentials_storage
     );
 
-    // Configure PostgreSQL connection pool (sync)
-    let pg_connection_string = format!(
-        "host={} port={} dbname={} user={} password={}",
-        pg_host, pg_port, pg_db, pg_user, pg_password
-    );
+    // Определяем, какие бэкенды нужны
+    let storages = [&session_storage, &ticket_storage, &credentials_storage];
+    let need_postgres = storages.iter().any(|s| s.to_lowercase() == "postgres");
+    let need_sqlite = storages.iter().any(|s| s.to_lowercase() == "sqlite");
 
-    let pg_manager = PostgresConnectionManager::new(
-        pg_connection_string
-            .parse()
-            .expect("Invalid PostgreSQL connection string"),
-        NoTls,
-    );
+    // PostgreSQL pool (создаём только при необходимости)
+    let pg_pool = if need_postgres {
+        let pg_host = std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
+        let pg_port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
+        let pg_db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "zid".to_string());
+        let pg_user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
+        let pg_password =
+            std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
 
-    let pg_pool = Pool::builder()
-        .max_size(15)
-        .build(pg_manager)
-        .expect("Failed to create PostgreSQL connection pool");
+        println!("🔌 PostgreSQL: {}:{}/{}", pg_host, pg_port, pg_db);
 
-    println!(
-        "✅ PostgreSQL connection pool created ({}:{})",
-        pg_host, pg_port
-    );
+        let pg_connection_string = format!(
+            "host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_password}"
+        );
 
-    // Create users table if it doesn't exist
-    let user_repo_init =
-        adapters::persistence::postgres_user::PostgresUserRepository::new(pg_pool.clone());
-    tokio::task::spawn_blocking(move || user_repo_init.create_table())
-        .await
-        .expect("Failed to spawn blocking task")?;
-    println!("✅ Users table initialized");
+        let pg_manager = PostgresConnectionManager::new(
+            pg_connection_string
+                .parse()
+                .expect("Invalid PostgreSQL connection string"),
+            NoTls,
+        );
 
-    // Initialize session repository based on configuration
-    let session_repository: Arc<dyn SessionRepository> = if session_storage.to_lowercase()
-        == "postgres"
+        let pool = Pool::builder()
+            .max_size(15)
+            .build(pg_manager)
+            .expect("Failed to create PostgreSQL connection pool");
+
+        // Инициализируем таблицу users в PostgreSQL
+        let user_repo_init =
+            adapters::persistence::postgres_user::PostgresUserRepository::new(pool.clone());
+        tokio::task::spawn_blocking(move || user_repo_init.create_table())
+            .await
+            .expect("Failed to spawn blocking task")?;
+
+        println!("✅ PostgreSQL connection pool created");
+        Some(pool)
+    } else {
+        None
+    };
+
+    // SQLite pool (создаём только при необходимости)
+    let sqlite_pool = if need_sqlite {
+        let sqlite_path = std::env::var("SQLITE_PATH").unwrap_or_else(|_| "zid.db".to_string());
+
+        println!("🔌 SQLite: {}", sqlite_path);
+
+        let manager = r2d2_sqlite::SqliteConnectionManager::file(&sqlite_path)
+            .with_init(|c| c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"));
+
+        let pool = Pool::builder()
+            .max_size(5)
+            .build(manager)
+            .expect("Failed to create SQLite connection pool");
+
+        // Инициализируем таблицу users в SQLite
+        let user_repo_init =
+            adapters::persistence::sqlite_user::SqliteUserRepository::new(pool.clone());
+        tokio::task::spawn_blocking(move || user_repo_init.create_table())
+            .await
+            .expect("Failed to spawn blocking task")?;
+
+        println!("✅ SQLite connection pool created");
+        Some(pool)
+    } else {
+        None
+    };
+
+    // Макрос-хелпер недоступен, используем замыкание для получения пулов
+    let get_pg = || {
+        pg_pool
+            .clone()
+            .expect("PostgreSQL pool required but not configured. Set POSTGRES_* env vars.")
+    };
+    let get_sqlite = || {
+        sqlite_pool
+            .clone()
+            .expect("SQLite pool required but not configured. Set SQLITE_PATH env var.")
+    };
+
+    // Initialize session repository
+    let session_repository: Arc<dyn SessionRepository> = match session_storage
+        .to_lowercase()
+        .as_str()
     {
-        // Create sessions table for PostgreSQL storage
-        let session_repo_init =
-            adapters::persistence::postgres_session::PostgresSessionRepository::new(
-                pg_pool.clone(),
+        "sqlite" => {
+            let pool = get_sqlite();
+            let repo =
+                adapters::persistence::sqlite_session::SqliteSessionRepository::new(pool.clone());
+            tokio::task::spawn_blocking({
+                let pool = pool.clone();
+                move || {
+                    adapters::persistence::sqlite_session::SqliteSessionRepository::new(pool)
+                        .create_table()
+                }
+            })
+            .await
+            .expect("Failed to spawn blocking task")?;
+            println!("✅ Sessions initialized (SQLite)");
+            Arc::new(repo)
+        }
+        "redis" => {
+            let redis_client = redis::Client::open(redis_url.as_str())?;
+            println!("✅ Sessions initialized (Redis)");
+            Arc::new(
+                adapters::persistence::redis_session::RedisSessionRepository::new(redis_client),
+            )
+        }
+        _ => {
+            // postgres (default)
+            let pool = get_pg();
+            let repo = adapters::persistence::postgres_session::PostgresSessionRepository::new(
+                pool.clone(),
             );
-        let pool_clone = pg_pool.clone();
-        tokio::task::spawn_blocking(move || {
-            let repo =
-                adapters::persistence::postgres_session::PostgresSessionRepository::new(pool_clone);
-            repo.create_table()
-        })
-        .await
-        .expect("Failed to spawn blocking task")?;
-        println!("✅ Sessions table initialized (PostgreSQL)");
-
-        Arc::new(session_repo_init)
-    } else {
-        // Use Redis for sessions
-        let redis_client = redis::Client::open(redis_url.as_str())?;
-        println!("✅ Redis client created for sessions ({})", redis_url);
-
-        Arc::new(
-            adapters::persistence::redis_session::RedisSessionRepository::new(redis_client.clone()),
-        )
+            tokio::task::spawn_blocking({
+                let pool = pool.clone();
+                move || {
+                    adapters::persistence::postgres_session::PostgresSessionRepository::new(pool)
+                        .create_table()
+                }
+            })
+            .await
+            .expect("Failed to spawn blocking task")?;
+            println!("✅ Sessions initialized (PostgreSQL)");
+            Arc::new(repo)
+        }
     };
 
-    // Initialize ticket repository based on configuration
-    let ticket_repository: Arc<dyn TicketRepository> = if ticket_storage.to_lowercase()
-        == "postgres"
+    // Initialize ticket repository
+    let ticket_repository: Arc<dyn TicketRepository> = match ticket_storage.to_lowercase().as_str()
     {
-        // Create tickets table for PostgreSQL storage
-        // Note: tickets table requires sessions table to exist first
-        let pool_clone = pg_pool.clone();
-        tokio::task::spawn_blocking(move || {
+        "sqlite" => {
+            let pool = get_sqlite();
             let repo =
-                adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool_clone);
-            repo.create_table()
-        })
-        .await
-        .expect("Failed to spawn blocking task")?;
-        println!("✅ Tickets table initialized (PostgreSQL)");
-
-        Arc::new(
-            adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pg_pool.clone()),
-        )
-    } else {
-        // Use Redis for tickets
-        let redis_client = redis::Client::open(redis_url.as_str())?;
-        println!("✅ Redis client created for tickets ({})", redis_url);
-
-        Arc::new(
-            adapters::persistence::redis_ticket::RedisTicketRepository::new(redis_client.clone()),
-        )
+                adapters::persistence::sqlite_ticket::SqliteTicketRepository::new(pool.clone());
+            tokio::task::spawn_blocking({
+                let pool = pool.clone();
+                move || {
+                    adapters::persistence::sqlite_ticket::SqliteTicketRepository::new(pool)
+                        .create_table()
+                }
+            })
+            .await
+            .expect("Failed to spawn blocking task")?;
+            println!("✅ Tickets initialized (SQLite)");
+            Arc::new(repo)
+        }
+        "redis" => {
+            let redis_client = redis::Client::open(redis_url.as_str())?;
+            println!("✅ Tickets initialized (Redis)");
+            Arc::new(adapters::persistence::redis_ticket::RedisTicketRepository::new(redis_client))
+        }
+        _ => {
+            let pool = get_pg();
+            tokio::task::spawn_blocking({
+                let pool = pool.clone();
+                move || {
+                    adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool)
+                        .create_table()
+                }
+            })
+            .await
+            .expect("Failed to spawn blocking task")?;
+            println!("✅ Tickets initialized (PostgreSQL)");
+            Arc::new(adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool))
+        }
     };
 
-    // Initialize credentials repository based on configuration
-    println!("🔧 Credentials storage backend: {}", credentials_storage);
-    let creds_repository: Arc<dyn CredentialsRepository> = if credentials_storage.to_lowercase()
-        == "postgres"
-    {
-        // Create credentials table for PostgreSQL storage
-        let pool_clone = pg_pool.clone();
-        tokio::task::spawn_blocking(move || {
-            let repo =
-                adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
-                    pool_clone,
-                );
-            repo.create_table()
-        })
-        .await
-        .expect("Failed to spawn blocking task")?;
-        println!("✅ Credentials table initialized (PostgreSQL)");
+    // Initialize credentials repository
+    let creds_repository: Arc<dyn CredentialsRepository> =
+        match credentials_storage.to_lowercase().as_str() {
+            "sqlite" => {
+                let pool = get_sqlite();
+                let repo =
+                    adapters::persistence::sqlite_credentials::SqliteCredentialsRepository::new(
+                        pool.clone(),
+                    );
+                tokio::task::spawn_blocking({
+                    let pool = pool.clone();
+                    move || {
+                        adapters::persistence::sqlite_credentials::SqliteCredentialsRepository::new(
+                            pool,
+                        )
+                        .create_table()
+                    }
+                })
+                .await
+                .expect("Failed to spawn blocking task")?;
+                println!("✅ Credentials initialized (SQLite)");
+                Arc::new(repo)
+            }
+            "redis" => {
+                let redis_client = redis::Client::open(redis_url.as_str())?;
+                println!("✅ Credentials initialized (Redis)");
+                Arc::new(
+                    adapters::persistence::redis_credentials::RedisCredentialsRepository::new(
+                        redis_client,
+                    ),
+                )
+            }
+            _ => {
+                let pool = get_pg();
+                tokio::task::spawn_blocking({
+                let pool = pool.clone();
+                move || {
+                    adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
+                        pool,
+                    )
+                    .create_table()
+                }
+            })
+            .await
+            .expect("Failed to spawn blocking task")?;
+                println!("✅ Credentials initialized (PostgreSQL)");
+                Arc::new(
+                    adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
+                        get_pg(),
+                    ),
+                )
+            }
+        };
 
-        Arc::new(
-            adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
-                pg_pool.clone(),
-            ),
-        )
+    // Initialize user repository (users всегда хранятся в том же бэкенде, что и sessions)
+    let user_repository: Arc<dyn UserRepository> = if need_sqlite && !need_postgres {
+        // Полностью SQLite режим
+        Arc::new(adapters::persistence::sqlite_user::SqliteUserRepository::new(get_sqlite()))
     } else {
-        // Use Redis for credentials
-        let redis_client = redis::Client::open(redis_url.as_str())?;
-        println!("✅ Redis client created for credentials ({})", redis_url);
-
-        Arc::new(
-            adapters::persistence::redis_credentials::RedisCredentialsRepository::new(redis_client),
-        )
+        // PostgreSQL (по умолчанию, или смешанный режим)
+        Arc::new(adapters::persistence::postgres_user::PostgresUserRepository::new(get_pg()))
     };
-
-    // Initialize user repository
-    let user_repository =
-        Arc::new(adapters::persistence::postgres_user::PostgresUserRepository::new(pg_pool));
 
     println!("✅ All repositories initialized");
 
@@ -302,15 +402,10 @@ async fn run_server() -> anyhow::Result<()> {
     };
 
     println!();
-    println!("🚀 ZID CAS Server listening on http://{}", bind_addr);
-    println!(
-        "   - PostgreSQL: {}:{}/{} (sync with r2d2 pool)",
-        pg_host, pg_port, pg_db
-    );
+    println!("🚀 ZID Server listening on http://{}", bind_addr);
     println!("   - Sessions storage: {}", session_storage);
     println!("   - Tickets storage: {}", ticket_storage);
     println!("   - Credentials storage: {}", credentials_storage);
-    println!("   - Handlers: async with spawn_blocking for sync operations");
     println!();
 
     if let Err(e) = axum::serve(listener, router).await {

@@ -1,70 +1,70 @@
-# AGENTS.md — Правила для AI-агентов
+# AGENTS.md — Rules for AI Agents
 
-Этот документ содержит инструкции для AI-агентов по разработке проекта ZID.
+Instructions for AI agents working on the ZID project.
 
-## Обзор проекта
+## Project Overview
 
-**ZID** — CAS-подобный сервер аутентификации на Rust.
+**ZID** — a lightweight self-hosted identity provider (IdP) written in Rust.
 
-Принцип работы:
-1. Пользователь логинится в ZID
-2. ZID выдаёт **one-time ticket**
-3. Приложение верифицирует ticket через `/verify` → получает `user_id`, `username`
-4. Приложение создаёт свою сессию
+How it works:
+1. User logs in to ZID
+2. ZID issues a **one-time ticket**
+3. Application verifies the ticket via `/verify` → receives `user_id`, `username`
+4. Application creates its own session
 
-### Основные сущности
+### Core Entities
 
-- **User** — пользователь (поддержка username/password и Telegram)
-- **Session** — SSO-сессия (7 дней, sliding expiration)
-- **Ticket** — одноразовый тикет (5 минут TTL)
-- **Credentials** — учётные данные (Argon2 хеширование)
+- **User** — user (supports username/password and Telegram)
+- **Session** — SSO session (7 days, sliding expiration)
+- **Ticket** — one-time ticket (5 minutes TTL)
+- **Credentials** — user credentials (Argon2 hashing)
 
-## Архитектура
+## Architecture
 
-Проект использует **Hexagonal Architecture** (Ports & Adapters):
+The project uses **Hexagonal Architecture** (Ports & Adapters):
 
 ```
 src/
-├── ports/           # Доменные интерфейсы (traits)
-│   ├── entities.rs      # Сущности: User, Session, Ticket
-│   ├── error.rs         # Типы ошибок домена
-│   ├── zid_service.rs   # Главный сервис (trait)
-│   └── *_repository.rs  # Интерфейсы репозиториев
-├── adapters/        # Реализации инфраструктуры
+├── ports/           # Domain interfaces (traits)
+│   ├── entities.rs      # Entities: User, Session, Ticket
+│   ├── error.rs         # Domain error types
+│   ├── zid_service.rs   # Main service (trait)
+│   └── *_repository.rs  # Repository interfaces
+├── adapters/        # Infrastructure implementations
 │   ├── http/            # Axum: handlers, routes, DTOs
-│   ├── persistence/     # PostgreSQL и Redis реализации
+│   ├── persistence/     # PostgreSQL, Redis, and SQLite implementations
 │   └── telegram/        # Telegram Login Widget
-├── application/     # Бизнес-логика
-│   └── zid_app.rs       # Реализация ZidService
-└── main.rs          # Точка входа, DI
+├── application/     # Business logic
+│   └── zid_app.rs       # ZidService implementation
+└── main.rs          # Entry point, DI
 ```
 
-### Ключевые файлы
+### Key Files
 
-| Файл | Описание |
-|------|----------|
-| `src/ports/entities.rs` | Доменные сущности |
-| `src/ports/error.rs` | Типы ошибок |
-| `src/application/zid_app.rs` | Бизнес-логика аутентификации |
-| `src/adapters/http/handlers.rs` | HTTP обработчики |
-| `src/adapters/http/routes.rs` | Маршруты API |
-| `src/adapters/http/dto.rs` | DTO для HTTP |
+| File | Description |
+|------|-------------|
+| `src/ports/entities.rs` | Domain entities |
+| `src/ports/error.rs` | Error types |
+| `src/application/zid_app.rs` | Authentication business logic |
+| `src/adapters/http/handlers.rs` | HTTP handlers |
+| `src/adapters/http/routes.rs` | API routes |
+| `src/adapters/http/dto.rs` | HTTP DTOs |
 
-## Правила разработки
+## Development Rules
 
-### Архитектурные правила
+### Architecture Rules
 
-1. **Направление зависимостей**: Adapters зависят от Ports, не наоборот
+1. **Dependency direction**: Adapters depend on Ports, never the reverse
    ```rust
    // adapters/persistence/postgres_user.rs
    use crate::ports::{entities::User, error::Error, user_repository::UserRepository};
    ```
 
-2. **Новые репозитории**:
-   - Trait определяется в `src/ports/`
-   - Реализации в `src/adapters/persistence/` (postgres_*, redis_*)
+2. **New repositories**:
+   - Trait defined in `src/ports/`
+   - Implementations in `src/adapters/persistence/` (postgres_*, redis_*)
 
-3. **Async/Sync граница**: HTTP handlers (async) вызывают синхронный доменный код через `spawn_blocking`:
+3. **Async/Sync boundary**: HTTP handlers (async) call synchronous domain code via `spawn_blocking`:
    ```rust
    let result = tokio::task::spawn_blocking(move || {
        state.zid.login(&req.username, &req.password, req.return_to.as_deref())
@@ -72,32 +72,32 @@ src/
    .await??;
    ```
 
-4. **Dependency Injection**: Репозитории инжектируются в `ZidApp` через `Arc<dyn Trait>`
+4. **Dependency Injection**: Repositories are injected into `ZidApp` via `Arc<dyn Trait>`
 
-### Конвенции кода
+### Code Conventions
 
-1. **Язык документации**: Комментарии и документация на **русском языке**
+1. **Documentation language**: Comments and docs in **Russian**
 
-2. **Форматирование строк**: Переменные можно использовать напрямую в `format!`:
+2. **String formatting**: Use variables directly in `format!`:
    ```rust
-   // Хорошо
+   // Good
    format!("User {username} not found")
-   // Избегать
+   // Avoid
    format!("User {} not found", username)
    ```
 
-3. **Именование**:
-   - Репозитории: `PostgresXxxRepository`, `RedisXxxRepository`
+3. **Naming**:
+   - Repositories: `PostgresXxxRepository`, `RedisXxxRepository`, `SqliteXxxRepository`
    - Traits: `XxxRepository`, `XxxService`
    - DTOs: `XxxRequest`, `XxxResponse`
-   - Ошибки: PascalCase (`UserNotFound`, `TicketExpired`)
+   - Errors: PascalCase (`UserNotFound`, `TicketExpired`)
 
-4. **Обработка ошибок**:
-   - Доменные ошибки через `ports::error::Error`
-   - Маппинг DB ошибок в доменные в репозиториях
-   - HTTP ошибки через `HttpError` wrapper
+4. **Error handling**:
+   - Domain errors via `ports::error::Error`
+   - DB errors mapped to domain errors in repositories
+   - HTTP errors via `HttpError` wrapper
 
-5. **Конструкторы**: Использовать `new()` методы:
+5. **Constructors**: Use `new()` methods:
    ```rust
    impl PostgresUserRepository {
        pub fn new(pool: Pool<...>) -> Self {
@@ -106,104 +106,105 @@ src/
    }
    ```
 
-6. **UUID**: Генерация через `uuid::Uuid::new_v4().to_string()`
+6. **UUID**: Generate via `uuid::Uuid::new_v4().to_string()`
 
-### Тестирование
+### Testing
 
-1. **Тесты с внешними зависимостями**: Помечать `#[ignore]`
+1. **Tests with external dependencies**: Mark with `#[ignore]`
    ```rust
    #[test]
-   #[ignore] // Требует запущенный PostgreSQL
+   #[ignore] // Requires running PostgreSQL
    fn test_user_repository() { ... }
    ```
 
-2. **Helper функции**: `setup_test_*()` для инфраструктуры тестов
+2. **Helper functions**: `setup_test_*()` for test infrastructure
 
-3. **Расположение**: `#[cfg(test)] mod tests` в конце файла реализации
+3. **Placement**: `#[cfg(test)] mod tests` at the end of the implementation file
 
-## Команды разработки
+## Development Commands
 
 ```bash
 # Docker
-task up          # Запуск Docker сервисов
-task down        # Остановка Docker сервисов
+task up          # Start Docker services
+task down        # Stop Docker services
 
-# Сборка и запуск
-task build       # Сборка Rust приложения
-task run         # Запуск приложения локально
-task cross-freebsd-aarch64  # Кросс-сборка для FreeBSD aarch64 (Linux amd64), см. docs/FREEBSD_SETUP.md
+# Build and run
+task build       # Build Rust application
+task run         # Run application locally
+task cross-freebsd-aarch64  # Cross-compile for FreeBSD aarch64 (from Linux amd64), see docs/FREEBSD_SETUP.md
 
-# База данных
-task migrate     # Запуск миграций (sqlx-cli)
+# Database
+task migrate     # Run migrations (sqlx-cli)
 
-# Тестирование
-./scripts/test.sh # E2E тесты
-cargo test        # Unit тесты
+# Testing
+./scripts/test.sh # E2E tests
+cargo test        # Unit tests
 ```
 
-Дополнительно через docker compose:
+Additional via docker compose:
 
 ```bash
-docker compose logs -f zid-app  # Логи приложения
-docker compose ps               # Статус сервисов
+docker compose logs -f zid-app  # Application logs
+docker compose ps               # Service status
 ```
 
-## Переменные окружения
+## Environment Variables
 
-| Переменная | Значения | Описание |
-|------------|----------|----------|
-| `SESSION_STORAGE` | `postgres` (default), `redis` | Хранилище сессий |
-| `TICKET_STORAGE` | `postgres` (default), `redis` | Хранилище тикетов |
-| `CREDENTIALS_STORAGE` | `postgres` (default), `redis` | Хранилище credentials |
-| `TRUSTED_DOMAINS` | comma-separated | Доверенные домены для return_to |
-| `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure флаг для cookie |
-| `OIDC_ENABLED` | `true` (default), `false` | Включить OIDC/OAuth 2.0; при отсутствии конфига/ключей — запуск без OIDC |
-| `OIDC_ISSUER` | URL | Базовый URL issuer (discovery, JWT) |
-| `OIDC_CLIENTS_FILE` | путь | Файл клиентов в формате YAML (`.yaml` / `.yml`) |
-| `OIDC_JWT_PRIVATE_KEY` | путь к PEM | Приватный ключ для подписи JWT |
-| `OIDC_JWT_PUBLIC_KEY` | путь к PEM | Публичный ключ (JWKS, верификация) |
+| Variable | Values | Description |
+|----------|--------|-------------|
+| `SESSION_STORAGE` | `postgres` (default), `redis`, `sqlite` | Session storage |
+| `TICKET_STORAGE` | `postgres` (default), `redis`, `sqlite` | Ticket storage |
+| `CREDENTIALS_STORAGE` | `postgres` (default), `redis`, `sqlite` | Credentials storage |
+| `SQLITE_PATH` | file path | SQLite database file (default: `zid.db`) |
+| `TRUSTED_DOMAINS` | comma-separated | Trusted domains for return_to |
+| `ZID_COOKIE_SECURE` | `auto`, `true`, `false` | Secure flag for cookie |
+| `OIDC_ENABLED` | `true` (default), `false` | Enable OIDC/OAuth 2.0; starts without OIDC if config/keys are missing |
+| `OIDC_ISSUER` | URL | Issuer base URL (discovery, JWT) |
+| `OIDC_CLIENTS_FILE` | path | Client config file in YAML format (`.yaml` / `.yml`) |
+| `OIDC_JWT_PRIVATE_KEY` | path to PEM | Private key for JWT signing |
+| `OIDC_JWT_PUBLIC_KEY` | path to PEM | Public key (JWKS, verification) |
 
-Полный список в `.env.example`.
+Full list in `.env.example`.
 
-## Запреты
+## Restrictions
 
-1. **Не использовать `sudo`** — команды требующие sudo отдавать пользователю
-2. **Не создавать тестовые примеры** без явного запроса
-3. **Не менять архитектуру** без обсуждения (Ports & Adapters)
+1. **Do not use `sudo`** — surface commands requiring sudo to the user
+2. **Do not create test examples** without explicit request
+3. **Do not change the architecture** without discussion (Ports & Adapters)
 
 ## HTTP API
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
-| GET | `/` | HTML форма логина |
-| POST | `/` | Submit формы логина |
-| GET | `/register` | HTML форма регистрации |
-| POST | `/register` | Submit регистрации |
-| POST | `/login` | JSON API логин |
-| POST | `/login/telegram` | Telegram логин |
-| POST | `/verify` | Верификация тикета |
-| POST | `/logout` | Удаление сессии |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | HTML login form |
+| POST | `/` | Login form submit |
+| GET | `/register` | HTML registration form |
+| POST | `/register` | Registration submit |
+| POST | `/login` | JSON API login |
+| POST | `/login/telegram` | Telegram login |
+| POST | `/verify` | Ticket verification |
+| POST | `/logout` | Session deletion |
 | GET | `/health` | Health check |
 
-### OIDC/OAuth 2.0 (при OIDC_ENABLED=true)
+### OIDC/OAuth 2.0 (when OIDC_ENABLED=true)
 
-| Метод | Endpoint | Описание |
-|-------|----------|----------|
+| Method | Endpoint | Description |
+|--------|----------|-------------|
 | GET | `/.well-known/openid-configuration` | Discovery |
 | GET | `/oauth/authorize` | Authorization (code flow) |
-| POST | `/oauth/token` | Обмен code на токены, client_credentials |
-| GET | `/oauth/userinfo` | UserInfo: Bearer **access_token** (рекомендуется) или **id_token**; токен в заголовке `Authorization: Bearer` или в query `access_token`. Claims: sub, name, preferred_username, email (при scope profile/email). |
+| POST | `/oauth/token` | Exchange code for tokens, client_credentials |
+| GET | `/oauth/userinfo` | UserInfo: Bearer **access_token** (recommended) or **id_token**; token via `Authorization: Bearer` header or `access_token` query param. Claims: sub, name, preferred_username, email (with scope profile/email). |
 | GET | `/oauth/jwks` | JWKS |
 
-Клиенты задаются в YAML (OIDC_CLIENTS_FILE, расширение .yaml или .yml). Поддерживаются Authorization Code (+ PKCE) и Client Credentials.
+Clients are configured in YAML (OIDC_CLIENTS_FILE, extension .yaml or .yml). Supports Authorization Code (+ PKCE) and Client Credentials.
 
-## Миграции
+## Migrations
 
-Миграции находятся в `migrations/` и применяются через **sqlx-cli** (команда `task migrate`).
+Migrations are in `migrations/` and applied via **sqlx-cli** (`task migrate`).
 
-### Формат миграций
+### Migration Format
 
-Миграции используют формат с суффиксами `.up.sql` и `.down.sql` для поддержки откатов:
+Migrations use `.up.sql` and `.down.sql` suffixes for rollback support:
 
 ```
 migrations/
@@ -214,53 +215,53 @@ migrations/
 └── ...
 ```
 
-### Создание новых миграций
+### Creating New Migrations
 
 ```bash
-# Создать реверсивную миграцию (с .up.sql и .down.sql)
+# Create a reversible migration (with .up.sql and .down.sql)
 task migrate-add NAME=description
 
-# Или напрямую через sqlx-cli с флагом -r
+# Or directly via sqlx-cli with -r flag
 sqlx migrate add -r description
 ```
 
-### Применение и откат
+### Apply and Rollback
 
 ```bash
-# Применить все миграции
+# Apply all migrations
 task migrate
 
-# Откатить последнюю миграцию
+# Rollback last migration
 task migrate-revert
 ```
 
-**Важно**: sqlx-cli выполняет `.up.sql` при применении и `.down.sql` при откате.
+**Important**: sqlx-cli runs `.up.sql` on apply and `.down.sql` on rollback.
 
-### Паттерны в миграциях
+### Migration Patterns
 
 ```sql
--- Использовать IF NOT EXISTS / IF EXISTS для идемпотентности
+-- Use IF NOT EXISTS / IF EXISTS for idempotency
 CREATE TABLE IF NOT EXISTS ...
 ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...
 DROP TABLE IF EXISTS ...
 
--- Логирование завершения миграции
+-- Log migration completion
 DO $$
 BEGIN
     RAISE NOTICE 'Migration completed successfully';
 END $$;
 ```
 
-### Docker и миграции
+### Docker and Migrations
 
-При первом запуске PostgreSQL через Docker миграции применяются автоматически из `/docker-entrypoint-initdb.d`, но для управления миграциями в продакшене используйте `task migrate`.
+On first PostgreSQL startup via Docker, migrations are applied automatically from `/docker-entrypoint-initdb.d`, but for production migration management use `task migrate`.
 
-## Зависимости
+## Dependencies
 
-Основные:
-- **axum** (0.8) — веб-фреймворк
+Core:
+- **axum** (0.8) — web framework
 - **tokio** (1.48) — async runtime
 - **postgres** + **r2d2** — PostgreSQL
-- **redis** — Redis клиент
-- **argon2** — хеширование паролей
-- **serde** / **serde_json** — сериализация
+- **redis** — Redis client
+- **argon2** — password hashing
+- **serde** / **serde_json** — serialization

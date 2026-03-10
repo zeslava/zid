@@ -2,7 +2,7 @@
 
 # Default target
 help:
-	@echo "ZID CAS Server - Docker Commands"
+	@echo "ZID Server - Docker Commands"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
@@ -175,7 +175,7 @@ health:
 
 # Show environment info
 info:
-	@echo "ℹ️  ZID CAS Server Information"
+	@echo "ℹ️  ZID Server Information"
 	@echo ""
 	@echo "Docker Compose:"
 	@docker compose version
@@ -192,7 +192,7 @@ info:
 # Quick start (build + up)
 start: build up
 	@echo ""
-	@echo "🎉 ZID CAS Server is ready!"
+	@echo "🎉 ZID Server is ready!"
 	@echo ""
 	@echo "🧪 Run end-to-end tests:"
 	@echo "   make test"

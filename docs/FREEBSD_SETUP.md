@@ -1,201 +1,201 @@
-# ZID на FreeBSD — Руководство по установке
+# ZID on FreeBSD — Installation Guide
 
-Это руководство описывает установку и настройку ZID Authentication Service на FreeBSD.
+This guide describes installing and configuring the ZID Authentication Service on FreeBSD.
 
-## Требования
+## Requirements
 
-- FreeBSD 12.0 или новее
-- Rust (для сборки) или готовый бинарник
+- FreeBSD 12.0 or newer
+- Rust (for building) or a pre-built binary
 - PostgreSQL 12+
 - Redis 6.0+
 
-## Быстрая установка
+## Quick Installation
 
-### 1. Сборка проекта
+### 1. Build the project
 
 ```bash
 cd /path/to/zid
 cargo build --release
 ```
 
-### 2. Запуск скрипта установки
+### 2. Run the setup script
 
 ```bash
 sudo sh ./scripts/setup-freebsd.sh ./target/release/zid
 ```
 
-Скрипт автоматически:
-- Создаст пользователя `zid` и группу `zid`
-- Установит бинарник в `/usr/local/bin/zid`
-- Установит rc.d скрипт в `/usr/local/etc/rc.d/zid`
-- Создаст необходимые директории и файлы конфигурации
+The script automatically:
+- Creates a `zid` user and `zid` group
+- Installs the binary to `/usr/local/bin/zid`
+- Installs the rc.d script to `/usr/local/etc/rc.d/zid`
+- Creates the necessary directories and configuration files
 
-### 3. Конфигурация
+### 3. Configuration
 
-Отредактируйте файл с переменными окружения (по умолчанию `/usr/local/etc/zid/zid.conf`):
+Edit the environment variables file (default `/usr/local/etc/zid/zid.conf`):
 
 ```bash
 sudo nano /usr/local/etc/zid/zid.conf
 ```
 
-Убедитесь, что переменные окружения корректны (приложение читает `SERVER_HOST`, `SERVER_PORT`, `POSTGRES_*`, `REDIS_URL` и др. — см. раздел ниже).
+Make sure the environment variables are correct (the application reads `SERVER_HOST`, `SERVER_PORT`, `POSTGRES_*`, `REDIS_URL`, etc. — see the section below).
 
-### 4. Запуск
+### 4. Start
 
-**Одноразовый запуск** (команда сразу возвращает управление, сервис работает в фоне):
+**One-time start** (the command returns immediately, the service runs in the background):
 ```bash
 sudo service zid start
 ```
 
-**Автозапуск при загрузке:**
+**Auto-start on boot:**
 ```bash
 echo 'zid_enable="YES"' | sudo tee -a /etc/rc.conf
 sudo service zid start
 ```
 
-## Кросс-компиляция с Linux (amd64)
+## Cross-compilation from Linux (amd64)
 
-Чтобы собрать бинарник для FreeBSD aarch64 на машине с Linux amd64 (без доступа к FreeBSD):
+To build a binary for FreeBSD aarch64 on a Linux amd64 machine (without FreeBSD access):
 
-**Требования:** Docker, Rust (rustup), [cross](https://github.com/cross-rs/cross). Target `aarch64-unknown-freebsd` на хосте (Linux) не поддерживается stable — сборка выполняется внутри Docker-образа cross с nightly и build-std.
+**Requirements:** Docker, Rust (rustup), [cross](https://github.com/cross-rs/cross). The target `aarch64-unknown-freebsd` is not supported on stable on the host (Linux) — the build runs inside a cross Docker image with nightly and build-std.
 
 ```bash
-# Один раз: установить cross
+# One-time: install cross
 cargo install cross
 
-# Сборка (внутри контейнера используется nightly для build-std)
+# Build (uses nightly with build-std inside the container)
 task cross-freebsd-aarch64
 ```
 
-Артефакт: `./target/aarch64-unknown-freebsd/release/zid`. Скопируйте его на FreeBSD (например через `scp`) и установите по текущему сценарию:
+Artifact: `./target/aarch64-unknown-freebsd/release/zid`. Copy it to FreeBSD (e.g., via `scp`) and install using the standard procedure:
 
 ```bash
-# На FreeBSD после копирования бинарника
+# On FreeBSD after copying the binary
 sudo sh ./scripts/setup-freebsd.sh ./target/aarch64-unknown-freebsd/release/zid
 ```
 
-В корне проекта задан `Cross.toml` с образом для target `aarch64-unknown-freebsd`. Если образ `ghcr.io/cross-rs/aarch64-unknown-freebsd:latest` не найден при сборке, соберите его из репозитория cross-rs:
+The project root contains a `Cross.toml` with the image for the `aarch64-unknown-freebsd` target. If the image `ghcr.io/cross-rs/aarch64-unknown-freebsd:latest` is not found during the build, build it from the cross-rs repository:
 
 ```bash
 git clone --depth 1 https://github.com/cross-rs/cross && cd cross/docker && docker build -f Dockerfile.aarch64-unknown-freebsd -t ghcr.io/cross-rs/aarch64-unknown-freebsd:latest .
 ```
 
-Если Docker недоступен, потребуется ручная настройка: кросс-линкер и sysroot FreeBSD aarch64, указание линкера в `.cargo/config.toml` для target `aarch64-unknown-freebsd`.
+If Docker is unavailable, manual setup is required: a cross-linker and FreeBSD aarch64 sysroot, with the linker specified in `.cargo/config.toml` for the `aarch64-unknown-freebsd` target.
 
-## Команды управления
+## Management Commands
 
-| Команда | Описание |
-|---------|----------|
-| `sudo service zid start` | Запуск сервиса |
-| `sudo service zid stop` | Остановка сервиса |
-| `sudo service zid restart` | Перезагрузка сервиса |
-| `sudo service zid status` | Проверка статуса |
-| `sudo service zid config` | Показать конфигурацию |
-| `sudo service zid logs` | Просмотр логов (tail -f) |
+| Command | Description |
+|---------|-------------|
+| `sudo service zid start` | Start the service |
+| `sudo service zid stop` | Stop the service |
+| `sudo service zid restart` | Restart the service |
+| `sudo service zid status` | Check status |
+| `sudo service zid config` | Show configuration |
+| `sudo service zid logs` | View logs (tail -f) |
 
-## Структура файлов
+## File Structure
 
 ```
-/usr/local/bin/zid                 # Исполняемый файл сервиса
-/usr/local/etc/rc.d/zid            # RC.D скрипт (управление сервисом)
-/usr/local/etc/zid/                # Каталог конфигурации ZID
-  zid.conf                         # Файл переменных окружения (zid_env_file)
-  oidc_clients.yaml                 # OIDC: клиенты (если включён OIDC)
-  oidc_jwt_private.pem             # OIDC: ключ подписи JWT
-  oidc_jwt_public.pem              # OIDC: публичный ключ (JWKS)
-/var/lib/zid/                      # Домашняя директория пользователя zid
-/var/log/zid/zid.log               # Логи сервиса
-/var/run/zid/zid.pid               # PID файл
+/usr/local/bin/zid                 # Service binary
+/usr/local/etc/rc.d/zid            # RC.D script (service management)
+/usr/local/etc/zid/                # ZID configuration directory
+  zid.conf                         # Environment variables file (zid_env_file)
+  oidc_clients.yaml                # OIDC: clients (if OIDC is enabled)
+  oidc_jwt_private.pem             # OIDC: JWT signing key
+  oidc_jwt_public.pem              # OIDC: public key (JWKS)
+/var/lib/zid/                      # Home directory for zid user
+/var/log/zid/zid.log               # Service logs
+/var/run/zid/zid.pid               # PID file
 ```
 
-## Конфигурирование rc.conf
+## rc.conf Configuration
 
-Добавьте в `/etc/rc.conf` (для автозапуска):
+Add to `/etc/rc.conf` (for auto-start):
 
 ```bash
-# Основные параметры
+# Main parameters
 zid_enable="YES"
 
-# Опциональные параметры (значения по умолчанию)
-zid_user="zid"                           # Unix-пользователь
-zid_group="zid"                          # Unix-группа
-zid_env_file="/usr/local/etc/zid/zid.conf"   # Файл переменных окружения (см. rc.subr(8))
-zid_logfile="/var/log/zid/zid.log"       # Файл логов
-zid_pidfile="/var/run/zid/zid.pid"       # PID файл
+# Optional parameters (default values)
+zid_user="zid"                           # Unix user
+zid_group="zid"                          # Unix group
+zid_env_file="/usr/local/etc/zid/zid.conf"   # Environment variables file (see rc.subr(8))
+zid_logfile="/var/log/zid/zid.log"       # Log file
+zid_pidfile="/var/run/zid/zid.pid"       # PID file
 ```
 
-Переменная `zid_env_file` — стандартная для rc.subr(8): rc.d автоматически подхватывает из неё переменные окружения при старте. Для совместимости поддерживается устаревший синоним `zid_config`.
+The `zid_env_file` variable is standard for rc.subr(8): rc.d automatically picks up environment variables from it at startup. The deprecated alias `zid_config` is also supported for compatibility.
 
-## Переменные окружения (в файле zid_env_file)
+## Environment Variables (in zid_env_file)
 
 ```bash
-# Адрес и порт (приложение читает SERVER_HOST, SERVER_PORT)
+# Address and port (the application reads SERVER_HOST, SERVER_PORT)
 SERVER_HOST="0.0.0.0"
 SERVER_PORT="5555"
 
-# Хранилища (postgres по умолчанию, redis как альтернатива)
+# Storage (postgres by default, redis as alternative)
 SESSION_STORAGE="postgres"
 TICKET_STORAGE="postgres"
 CREDENTIALS_STORAGE="postgres"
 
-# База данных PostgreSQL
+# PostgreSQL database
 DATABASE_URL="postgresql://user:pass@localhost/zid"
 
 # Redis
 REDIS_URL="redis://localhost:6379"
 
-# Telegram (опционально)
+# Telegram (optional)
 TELEGRAM_BOT_USERNAME="your_bot"
 TELEGRAM_BOT_TOKEN="your_token"
 
-# Безопасность
-ZID_COOKIE_SECURE="false"           # true для HTTPS, false для локальной разработки
+# Security
+ZID_COOKIE_SECURE="false"           # true for HTTPS, false for local development
 
-# Логирование
-RUST_LOG="info"                     # Уровни: trace, debug, info, warn, error
-RUST_BACKTRACE="1"                  # Backtrace при панике
+# Logging
+RUST_LOG="info"                     # Levels: trace, debug, info, warn, error
+RUST_BACKTRACE="1"                  # Backtrace on panic
 
-# Доверенные домены (для return_to редиректов)
+# Trusted domains (for return_to redirects)
 TRUSTED_DOMAINS="localhost:3000,app.example.com,api.example.com"
 ```
 
-## Зависимости
+## Dependencies
 
 ### PostgreSQL
 
-Убедитесь, что PostgreSQL работает и доступна база данных:
+Make sure PostgreSQL is running and the database is accessible:
 
 ```bash
-# Проверка статуса
+# Check status
 sudo service postgresql status
 
-# Создание БД и пользователя (если не существуют)
+# Create DB and user (if they don't exist)
 sudo -u postgres createuser -P zid
 sudo -u postgres createdb -O zid zid
 
-# Применение миграций
+# Apply migrations
 cd /path/to/zid
 sqlx migrate run --database-url="postgresql://zid:pass@localhost/zid"
 ```
 
 ### Redis
 
-Убедитесь, что Redis работает:
+Make sure Redis is running:
 
 ```bash
-# Проверка статуса
+# Check status
 sudo service redis status
 
-# Запуск если отключен
+# Start if disabled
 sudo service redis start
 
-# Добавить в /etc/rc.conf для автозапуска
+# Add to /etc/rc.conf for auto-start
 echo 'redis_enable="YES"' | sudo tee -a /etc/rc.conf
 ```
 
-## Интеграция с Nginx (реверс-прокси)
+## Nginx Integration (reverse proxy)
 
-Пример конфига для Nginx:
+Example Nginx config:
 
 ```nginx
 upstream zid {
@@ -216,74 +216,74 @@ server {
 }
 ```
 
-Добавьте конфиг в `/usr/local/etc/nginx/conf.d/`:
+Add the config to `/usr/local/etc/nginx/conf.d/`:
 
 ```bash
 sudo cp zid-nginx.conf /usr/local/etc/nginx/conf.d/
 sudo service nginx reload
 ```
 
-## Мониторинг и логирование
+## Monitoring and Logging
 
-### Просмотр логов
+### Viewing logs
 
 ```bash
-# Реальное время
+# Real-time
 sudo tail -f /var/log/zid/zid.log
 
-# Или через rc.d команду
+# Or via the rc.d command
 sudo service zid logs
 ```
 
-### Ротация логов
+### Log rotation
 
-Добавьте в `/etc/newsyslog.conf`:
+Add to `/etc/newsyslog.conf`:
 
 ```
 /var/log/zid/zid.log   zid:zid   644  7  *  @daily  Z
 ```
 
-### Мониторинг здоровья
+### Health monitoring
 
-Проверьте health-check endpoint:
+Check the health-check endpoint:
 
 ```bash
 curl http://localhost:3000/health
 ```
 
-## Троубл-шутинг
+## Troubleshooting
 
-### Сервис не стартует
+### Service does not start
 
-1. Проверьте логи:
+1. Check logs:
    ```bash
    sudo tail -50 /var/log/zid/zid.log
    ```
 
-2. Проверьте конфигурацию:
+2. Check configuration:
    ```bash
    sudo service zid config
    ```
 
-3. Убедитесь, что зависимости запущены:
+3. Make sure dependencies are running:
    ```bash
    sudo service postgresql status
    sudo service redis status
    ```
 
-### Ошибка подключения к БД
+### Database connection error
 
 ```bash
-# Проверьте DATABASE_URL в файле zid_env_file (по умолчанию /usr/local/etc/zid/zid.conf)
+# Check DATABASE_URL in the zid_env_file (default /usr/local/etc/zid/zid.conf)
 sudo cat /usr/local/etc/zid/zid.conf | grep DATABASE_URL
 
-# Тестируйте подключение
+# Test the connection
 psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
 ```
 
-### Ошибка прав доступа
+### Permission error
 
-Проверьте права на файлы:
+Check file permissions:
 
 ```bash
 ls -la /var/log/zid/
@@ -291,72 +291,69 @@ ls -la /var/run/zid/
 ls -la /usr/local/etc/zid/zid.conf
 ```
 
-Исправьте если нужно:
+Fix if needed:
 
 ```bash
 sudo chown zid:zid /var/log/zid/
 sudo chown zid:zid /var/run/zid/
 ```
 
-### Проверка портов
+### Port check
 
 ```bash
-# Проверьте, что порт 3000 слушается
+# Check that port 3000 is listening
 sudo sockstat -l | grep 3000
 
-# Если есть конфликт, измените SERVER_PORT в файле zid_env_file
+# If there is a conflict, change SERVER_PORT in the zid_env_file
 ```
 
-## Обновление
+## Updating
 
-### Обновление бинарника
+### Updating the binary
 
 ```bash
-# 1. Соберите новую версию
+# 1. Build the new version
 cd /path/to/zid
 git pull
 cargo build --release
 
-# 2. Переустановите с новым бинарником
+# 2. Reinstall with the new binary
 sudo sh ./scripts/setup-freebsd.sh ./target/release/zid
 
-# 3. Перезагрузите сервис
+# 3. Restart the service
 sudo service zid restart
 
-# 4. Проверьте статус
+# 4. Check status
 sudo service zid status
 ```
 
-### Откат
+### Rollback
 
 ```bash
 sudo service zid stop
-# Восстановите старый бинарник вручную
+# Restore the old binary manually
 sudo service zid start
 ```
 
-## Удаление
+## Uninstallation
 
 ```bash
-# 1. Остановите сервис
+# 1. Stop the service
 sudo service zid stop
 
-# 2. Удалите из автозапуска
+# 2. Remove from auto-start
 sudo sed -i '' '/zid_enable/d' /etc/rc.conf
 
-# 3. Удалите файлы
+# 3. Remove files
 sudo rm /usr/local/bin/zid
 sudo rm /usr/local/etc/rc.d/zid
 sudo rm /usr/local/etc/zid/zid.conf
 
-# 4. Удалите пользователя и директории (опционально)
+# 4. Remove user and directories (optional)
 sudo pw userdel zid
 sudo rm -rf /var/lib/zid /var/log/zid /var/run/zid
 ```
 
-## Дополнительно
+## See Also
 
-Смотрите также:
-- [ZID Integration Guide](../ZID_INTEGRATION_GUIDE.md)
-- [Telegram Login](../docs/TELEGRAM_LOGIN.md)
-- [AGENTS.md](../AGENTS.md) — Архитектура проекта
+- [Telegram Login](TELEGRAM_LOGIN.md)

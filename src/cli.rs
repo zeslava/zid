@@ -17,7 +17,7 @@ fn generate_secret() -> String {
 }
 
 #[derive(Parser)]
-#[command(name = "zid", about = "ZID — CAS-like SSO authentication server")]
+#[command(name = "zid", about = "ZID — lightweight SSO authentication server")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -178,18 +178,16 @@ fn prompt_client() -> (String, Option<String>, Vec<String>, Vec<String>) {
         });
     let secret = if secret_input.trim().is_empty() {
         let generated = generate_secret();
-        let accept = Confirm::new(&format!("Использовать сгенерированный секрет: {generated} ?"))
-            .with_default(true)
-            .prompt()
-            .unwrap_or_else(|e| {
-                eprintln!("Ошибка ввода: {e}");
-                std::process::exit(1);
-            });
-        if accept {
-            Some(generated)
-        } else {
-            None
-        }
+        let accept = Confirm::new(&format!(
+            "Использовать сгенерированный секрет: {generated} ?"
+        ))
+        .with_default(true)
+        .prompt()
+        .unwrap_or_else(|e| {
+            eprintln!("Ошибка ввода: {e}");
+            std::process::exit(1);
+        });
+        if accept { Some(generated) } else { None }
     } else {
         Some(secret_input)
     };

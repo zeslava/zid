@@ -1,150 +1,150 @@
 # Telegram Login Integration
 
-Полная инструкция по интеграции входа через Telegram в ZID CAS Server.
+Full guide for integrating Telegram login with ZID.
 
-## 📋 Содержание
+## Contents
 
-- [Быстрый старт](#быстрый-старт)
-- [Подробная настройка](#подробная-настройка)
+- [Quick Start](#quick-start)
+- [Detailed Setup](#detailed-setup)
 - [API](#api)
-- [Безопасность](#безопасность)
-- [Локальная разработка](#локальная-разработка)
+- [Security](#security)
+- [Local Development](#local-development)
 - [Troubleshooting](#troubleshooting)
 
-## 🚀 Быстрый старт
+## Quick Start
 
-### 1. Создайте Telegram бота
+### 1. Create a Telegram bot
 
-1. Откройте Telegram и найдите [@BotFather](https://t.me/botfather)
-2. Отправьте команду `/newbot`
-3. Следуйте инструкциям:
-   - Введите имя бота (например: "My CAS Bot")
-   - Введите username бота (например: "my_cas_bot", должен заканчиваться на "_bot")
-4. Сохраните **токен бота** (выглядит так: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+1. Open Telegram and find [@BotFather](https://t.me/botfather)
+2. Send the `/newbot` command
+3. Follow the instructions:
+   - Enter a bot name (e.g., "My ZID Bot")
+   - Enter a bot username (e.g., "my_zid_bot", must end with "_bot")
+4. Save the **bot token** (looks like: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
 
-### 2. Настройте домен для Login Widget
+### 2. Set up the domain for Login Widget
 
-⚠️ **Важно:** Telegram Login Widget работает только с публичными доменами или localhost.
+Telegram Login Widget only works with public domains or localhost.
 
-Отправьте команду `/setdomain` в @BotFather:
+Send `/setdomain` to @BotFather:
 ```
 /setdomain
-→ Выберите вашего бота
-→ Введите домен: localhost (для разработки) или ваш реальный домен
+→ Select your bot
+→ Enter domain: localhost (for development) or your real domain
 ```
 
-Для продакшена укажите ваш реальный домен без протокола:
-- ✅ `cas.example.com`
-- ✅ `localhost` (только для разработки)
-- ❌ `https://cas.example.com` (неправильно - не указывайте протокол)
+For production, specify your real domain without the protocol:
+- `cas.example.com`
+- `localhost` (development only)
+- `https://cas.example.com` (incorrect — do not include the protocol)
 
-### 3. Настройте переменные окружения
+### 3. Configure environment variables
 
-Создайте файл `.env` в корне проекта:
+Create a `.env` file in the project root:
 
 ```bash
-# Токен бота из @BotFather
+# Bot token from @BotFather
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 
-# Username бота БЕЗ символа @ (например: my_cas_bot)
+# Bot username WITHOUT the @ symbol (e.g., my_cas_bot)
 TELEGRAM_BOT_USERNAME=my_cas_bot
 
-# Автоматически создавать новых пользователей при первом входе через Telegram
-# true - любой пользователь Telegram может войти
-# false - только существующие пользователи могут войти через Telegram
+# Automatically create new users on first Telegram login
+# true - any Telegram user can log in
+# false - only existing users can log in via Telegram
 TELEGRAM_AUTO_REGISTER=true
 ```
 
-### 4. Запустите сервер
+### 4. Start the server
 
 ```bash
-# С Docker Compose (рекомендуется)
+# With Docker Compose (recommended)
 docker compose up -d
 
-# Или локально
+# Or locally
 cargo run --release
 ```
 
-### 5. Проверьте работу
+### 5. Verify it works
 
-Откройте в браузере: http://localhost:5555/
+Open in browser: http://localhost:5555/
 
-Вы должны увидеть:
-- Обычную форму входа (логин/пароль)
-- Разделитель "OR"
-- Кнопку "Login with Telegram"
+You should see:
+- The standard login form (username/password)
+- An "OR" divider
+- A "Login with Telegram" button
 
-## 📝 Подробная настройка
+## Detailed Setup
 
-### Переменные окружения
+### Environment Variables
 
-| Переменная | Обязательна | Описание | Пример |
-|------------|-------------|----------|--------|
-| `TELEGRAM_BOT_TOKEN` | Да* | Токен бота из @BotFather | `123456789:ABC...` |
-| `TELEGRAM_BOT_USERNAME` | Да* | Username бота без @ | `my_cas_bot` |
-| `TELEGRAM_AUTO_REGISTER` | Нет | Автоматическая регистрация | `true` (по умолчанию) |
+| Variable | Required | Description | Example |
+|----------|----------|-------------|---------|
+| `TELEGRAM_BOT_TOKEN` | Yes* | Bot token from @BotFather | `123456789:ABC...` |
+| `TELEGRAM_BOT_USERNAME` | Yes* | Bot username without @ | `my_cas_bot` |
+| `TELEGRAM_AUTO_REGISTER` | No | Auto-registration | `true` (default) |
 
-*\* Если хотя бы одна из переменных не установлена, кнопка Telegram Login не будет показана*
+*\* If either variable is not set, the Telegram Login button will not be displayed*
 
-### Режимы работы
+### Operating Modes
 
-#### Режим 1: Автоматическая регистрация (по умолчанию)
+#### Mode 1: Auto-registration (default)
 
 ```bash
 TELEGRAM_AUTO_REGISTER=true
 ```
 
-**Поведение:**
-- Любой пользователь Telegram может войти
-- При первом входе автоматически создается аккаунт
-- Username в БД: `tg_{telegram_username}` или `tg_{telegram_id}`
+**Behavior:**
+- Any Telegram user can log in
+- An account is automatically created on first login
+- Username in DB: `tg_{telegram_username}` or `tg_{telegram_id}`
 
-**Подходит для:**
-- Публичных сервисов
-- Когда нужен простой вход без предварительной регистрации
+**Suitable for:**
+- Public services
+- When simple login without pre-registration is needed
 
-#### Режим 2: Только существующие пользователи
+#### Mode 2: Existing users only
 
 ```bash
 TELEGRAM_AUTO_REGISTER=false
 ```
 
-**Поведение:**
-- Только пользователи с привязанным Telegram ID могут войти
-- При попытке входа неизвестного пользователя возвращается ошибка
-- Администратор должен вручную создать пользователей
+**Behavior:**
+- Only users with a linked Telegram ID can log in
+- An error is returned when an unknown user attempts to log in
+- An administrator must manually create users
 
-**Подходит для:**
-- Корпоративных систем
-- Когда нужен контроль над списком пользователей
+**Suitable for:**
+- Corporate systems
+- When user list control is needed
 
-### Миграция базы данных
+### Database Migration
 
-При запуске Docker Compose миграция применяется автоматически.
+When using Docker Compose, the migration is applied automatically.
 
-Для ручного применения:
+For manual application:
 
 ```bash
-# Подключитесь к PostgreSQL
+# Connect to PostgreSQL
 psql -U postgres -d zid -h localhost -p 5432
 
-# Примените миграцию
+# Apply the migration
 \i migrations/002_add_telegram_support.sql
 ```
 
-Миграция добавляет следующие поля в таблицу `users`:
-- `telegram_id` (BIGINT, UNIQUE) - ID пользователя в Telegram
-- `telegram_username` (VARCHAR) - @username в Telegram
-- `telegram_first_name` (VARCHAR) - Имя
-- `telegram_last_name` (VARCHAR) - Фамилия
-- `telegram_photo_url` (TEXT) - URL аватарки
-- `telegram_auth_date` (BIGINT) - Время последней аутентификации
+The migration adds the following fields to the `users` table:
+- `telegram_id` (BIGINT, UNIQUE) — Telegram user ID
+- `telegram_username` (VARCHAR) — @username in Telegram
+- `telegram_first_name` (VARCHAR) — First name
+- `telegram_last_name` (VARCHAR) — Last name
+- `telegram_photo_url` (TEXT) — Avatar URL
+- `telegram_auth_date` (BIGINT) — Last authentication time
 
-## 📡 API
+## API
 
 ### POST /login/telegram
 
-Endpoint для аутентификации через Telegram. Вызывается автоматически JavaScript кодом после успешного входа через Telegram Widget.
+Endpoint for Telegram authentication. Called automatically by JavaScript code after successful login via the Telegram Widget.
 
 **Request:**
 ```json
@@ -160,7 +160,7 @@ Endpoint для аутентификации через Telegram. Вызывае
 }
 ```
 
-**Response (успех):**
+**Response (success):**
 ```json
 {
   "ticket": "ZID-7a3b9c2f8e1d4a5b6c7d8e9f0a1b2c3d",
@@ -168,237 +168,237 @@ Endpoint для аутентификации через Telegram. Вызывае
 }
 ```
 
-**Response (ошибка):**
+**Response (error):**
 ```json
 {
   "error": "Telegram auth verification failed: Hash mismatch"
 }
 ```
 
-### Коды ошибок
+### Error Codes
 
-| Код | Описание | Причина |
-|-----|----------|---------|
-| 401 | Unauthorized | Hash verification failed - подпись Telegram не прошла проверку |
-| 404 | Not Found | User not found - пользователь не найден (когда `TELEGRAM_AUTO_REGISTER=false`) |
-| 500 | Internal Server Error | TELEGRAM_BOT_TOKEN не настроен или ошибка БД |
+| Code | Description | Cause |
+|------|-------------|-------|
+| 401 | Unauthorized | Hash verification failed — Telegram signature check did not pass |
+| 404 | Not Found | User not found (when `TELEGRAM_AUTO_REGISTER=false`) |
+| 500 | Internal Server Error | TELEGRAM_BOT_TOKEN not configured or database error |
 
-## 🔐 Безопасность
+## Security
 
-### Проверка подлинности данных
+### Data Authenticity Verification
 
-Все данные от Telegram проверяются на подлинность согласно [официальной документации](https://core.telegram.org/widgets/login#checking-authorization):
+All data from Telegram is verified for authenticity per the [official documentation](https://core.telegram.org/widgets/login#checking-authorization):
 
-1. **Создание data_check_string:**
-   - Все поля (кроме `hash`) собираются в формате `key=value`
-   - Сортируются по алфавиту
-   - Объединяются через `\n`
+1. **Building data_check_string:**
+   - All fields (except `hash`) are collected as `key=value`
+   - Sorted alphabetically
+   - Joined with `\n`
 
-2. **Вычисление secret_key:**
+2. **Computing secret_key:**
    ```
    secret_key = SHA256(bot_token)
    ```
 
-3. **Вычисление hash:**
+3. **Computing hash:**
    ```
    hash = HMAC-SHA256(data_check_string, secret_key)
    ```
 
-4. **Сравнение:**
-   - Полученный hash сравнивается с hash от Telegram
-   - Используется constant-time сравнение для защиты от timing attacks
+4. **Comparison:**
+   - The computed hash is compared with the hash from Telegram
+   - Constant-time comparison is used for protection against timing attacks
 
-5. **Проверка времени:**
-   - `auth_date` не должен быть старше 24 часов
-   - Защита от replay attacks
+5. **Time check:**
+   - `auth_date` must not be older than 24 hours
+   - Protection against replay attacks
 
-### Что это дает?
+### What does this provide?
 
-✅ Невозможно подделать данные от имени другого пользователя  
-✅ Невозможно повторно использовать старые данные авторизации  
-✅ Только реальные пользователи Telegram могут войти  
-✅ Токен бота известен только серверу (не передается клиенту)
+- Cannot forge data on behalf of another user
+- Cannot reuse old authorization data
+- Only real Telegram users can log in
+- Bot token is known only to the server (not transmitted to the client)
 
-### Рекомендации по безопасности
+### Security Recommendations
 
-1. **Храните токен бота в секрете:**
-   - Используйте `.env` файл (добавьте в `.gitignore`)
-   - Никогда не коммитьте токен в Git
-   - В продакшене используйте secrets management (Docker secrets, K8s secrets, etc.)
+1. **Keep the bot token secret:**
+   - Use a `.env` file (add to `.gitignore`)
+   - Never commit the token to Git
+   - In production use secrets management (Docker secrets, K8s secrets, etc.)
 
-2. **Используйте HTTPS в продакшене:**
-   - Telegram требует HTTPS для Login Widget (кроме localhost)
-   - Получите SSL сертификат (Let's Encrypt бесплатный)
+2. **Use HTTPS in production:**
+   - Telegram requires HTTPS for Login Widget (except localhost)
+   - Get an SSL certificate (Let's Encrypt is free)
 
-3. **Настройте TRUSTED_DOMAINS:**
+3. **Configure TRUSTED_DOMAINS:**
    ```bash
    TRUSTED_DOMAINS=cas.example.com,app.example.com
    ```
 
-4. **Регулярно обновляйте зависимости:**
+4. **Regularly update dependencies:**
    ```bash
    cargo update
    ```
 
-## 💻 Локальная разработка
+## Local Development
 
-### Проблема: Telegram требует публичный домен
+### Problem: Telegram requires a public domain
 
-Telegram Login Widget **не работает** с IP адресами и внутренними доменами (кроме `localhost`).
+Telegram Login Widget **does not work** with IP addresses and internal domains (except `localhost`).
 
-### Решение 1: ngrok (рекомендуется для разработки)
+### Solution 1: ngrok (recommended for development)
 
 ```bash
-# Установите ngrok: https://ngrok.com/download
+# Install ngrok: https://ngrok.com/download
 
-# Запустите туннель
+# Start a tunnel
 ngrok http 5555
 
-# Скопируйте публичный URL (например: https://abc123.ngrok.io)
-# Настройте в @BotFather через /setdomain
+# Copy the public URL (e.g., https://abc123.ngrok.io)
+# Configure in @BotFather via /setdomain
 ```
 
-**Преимущества:**
-- ✅ Быстро и просто
-- ✅ Автоматический HTTPS
-- ✅ Работает из любой сети
+**Pros:**
+- Quick and simple
+- Automatic HTTPS
+- Works from any network
 
-**Недостатки:**
-- ❌ URL меняется при каждом перезапуске (в бесплатной версии)
-- ❌ Требует обновления домена в @BotFather
+**Cons:**
+- URL changes on each restart (free tier)
+- Requires updating the domain in @BotFather
 
-### Решение 2: localhost (только для начальной разработки)
+### Solution 2: localhost (initial development only)
 
 ```bash
-# В @BotFather: /setdomain → localhost
+# In @BotFather: /setdomain → localhost
 ```
 
-**Преимущества:**
-- ✅ Не нужен внешний сервис
-- ✅ Работает оффлайн
+**Pros:**
+- No external service needed
+- Works offline
 
-**Недостатки:**
-- ❌ Работает только локально (нельзя тестировать с мобильного)
-- ❌ В продакшене нужно будет менять домен
+**Cons:**
+- Works locally only (cannot test from mobile)
+- Domain must be changed for production
 
-### Решение 3: Tailscale (для команд)
+### Solution 3: Tailscale (for teams)
 
 ```bash
-# Установите Tailscale: https://tailscale.com/download
+# Install Tailscale: https://tailscale.com/download
 
-# Включите MagicDNS и HTTPS сертификаты
-# Ваша машина будет доступна как: your-machine.tail-xxxxx.ts.net
+# Enable MagicDNS and HTTPS certificates
+# Your machine will be available as: your-machine.tail-xxxxx.ts.net
 
-# В @BotFather: /setdomain → your-machine.tail-xxxxx.ts.net
+# In @BotFather: /setdomain → your-machine.tail-xxxxx.ts.net
 ```
 
-**Преимущества:**
-- ✅ Постоянный домен
-- ✅ Автоматический HTTPS
-- ✅ Доступ для всей команды
-- ✅ Работает в любой сети
+**Pros:**
+- Permanent domain
+- Automatic HTTPS
+- Accessible to the whole team
+- Works from any network
 
-**Недостатки:**
-- ❌ Требует установки Tailscale
+**Cons:**
+- Requires Tailscale installation
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Кнопка Telegram не появляется
+### Telegram button does not appear
 
-**Причина:** Не настроены переменные окружения.
+**Cause:** Environment variables not configured.
 
-**Решение:**
-1. Проверьте, что установлены `TELEGRAM_BOT_TOKEN` и `TELEGRAM_BOT_USERNAME`
-2. Проверьте логи:
+**Solution:**
+1. Verify that `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` are set
+2. Check logs:
    ```bash
    docker compose logs zid-app
    ```
-3. Перезапустите контейнер:
+3. Restart the container:
    ```bash
    docker compose restart zid-app
    ```
 
 ### "Bot domain invalid"
 
-**Причина:** Домен не настроен в @BotFather.
+**Cause:** Domain not configured in @BotFather.
 
-**Решение:**
-1. Отправьте `/setdomain` в @BotFather
-2. Выберите вашего бота
-3. Укажите домен (без `https://`):
-   - Для разработки: `localhost`
-   - Для ngrok: `abc123.ngrok.io`
-   - Для продакшена: `cas.example.com`
+**Solution:**
+1. Send `/setdomain` to @BotFather
+2. Select your bot
+3. Enter the domain (without `https://`):
+   - For development: `localhost`
+   - For ngrok: `abc123.ngrok.io`
+   - For production: `cas.example.com`
 
 ### "Hash verification failed"
 
-**Причина 1:** Неправильный токен бота.
+**Cause 1:** Incorrect bot token.
 
-**Решение:**
-- Проверьте, что `TELEGRAM_BOT_TOKEN` правильный
-- Скопируйте токен из @BotFather заново
+**Solution:**
+- Verify that `TELEGRAM_BOT_TOKEN` is correct
+- Copy the token from @BotFather again
 
-**Причина 2:** Рассинхронизация времени на сервере.
+**Cause 2:** Server time out of sync.
 
-**Решение:**
+**Solution:**
 ```bash
-# Проверьте время на сервере
+# Check server time
 date
 
-# Синхронизируйте время (Linux)
+# Sync time (Linux)
 sudo ntpdate -s time.nist.gov
 ```
 
 ### "Auth data is too old"
 
-**Причина:** Данные старше 24 часов (или время на сервере неправильное).
+**Cause:** Data is older than 24 hours (or server time is incorrect).
 
-**Решение:**
-1. Проверьте время на сервере
-2. Попробуйте войти заново (не используйте кешированные данные)
+**Solution:**
+1. Check server time
+2. Try logging in again (do not use cached data)
 
-### "User not found" (при TELEGRAM_AUTO_REGISTER=false)
+### "User not found" (with TELEGRAM_AUTO_REGISTER=false)
 
-**Причина:** Пользователь не существует в БД.
+**Cause:** User does not exist in the database.
 
-**Решение:**
+**Solution:**
 
-**Вариант 1:** Включите автоматическую регистрацию:
+**Option 1:** Enable auto-registration:
 ```bash
 TELEGRAM_AUTO_REGISTER=true
 ```
 
-**Вариант 2:** Создайте пользователя вручную:
+**Option 2:** Create the user manually:
 ```sql
--- Подключитесь к БД
+-- Connect to the database
 psql -U postgres -d zid -h localhost -p 5432
 
--- Создайте пользователя
+-- Create the user
 INSERT INTO users (id, username, telegram_id, telegram_username, telegram_first_name)
 VALUES (
     gen_random_uuid()::text,
     'johndoe',
-    123456789,  -- ID пользователя из Telegram
+    123456789,  -- Telegram user ID
     'johndoe',  -- @username
     'John'
 );
 ```
 
-### CORS ошибки в браузере
+### CORS errors in the browser
 
-**Причина:** Telegram Widget загружается с другого домена.
+**Cause:** Telegram Widget is loaded from a different domain.
 
-**Решение:** Это нормально. CORS ошибки от Telegram Widget можно игнорировать - они не влияют на работу.
+**Solution:** This is normal. CORS errors from Telegram Widget can be ignored — they do not affect functionality.
 
-### Не работает на мобильном устройстве
+### Does not work on mobile device
 
-**Причина:** `localhost` недоступен с мобильного устройства.
+**Cause:** `localhost` is not accessible from a mobile device.
 
-**Решение:** Используйте ngrok или Tailscale (см. раздел "Локальная разработка").
+**Solution:** Use ngrok or Tailscale (see the "Local Development" section).
 
-## 📊 Примеры использования
+## Usage Examples
 
-### Пример 1: Публичный сервис с автоматической регистрацией
+### Example 1: Public service with auto-registration
 
 ```bash
 # .env
@@ -408,12 +408,12 @@ TELEGRAM_AUTO_REGISTER=true
 TRUSTED_DOMAINS=cas.example.com,app1.example.com,app2.example.com
 ```
 
-**Результат:**
-- Любой пользователь Telegram может войти
-- При первом входе создается аккаунт
-- Тикет можно использовать для всех доменов в `TRUSTED_DOMAINS`
+**Result:**
+- Any Telegram user can log in
+- An account is created on first login
+- The ticket can be used for all domains in `TRUSTED_DOMAINS`
 
-### Пример 2: Корпоративная система с контролем доступа
+### Example 2: Corporate system with access control
 
 ```bash
 # .env
@@ -423,12 +423,12 @@ TELEGRAM_AUTO_REGISTER=false
 TRUSTED_DOMAINS=*.company.com
 ```
 
-**Результат:**
-- Только пользователи с привязанным Telegram ID могут войти
-- HR или админ создает пользователей в БД
-- Поддерживаются все поддомены company.com
+**Result:**
+- Only users with a linked Telegram ID can log in
+- HR or admin creates users in the database
+- All subdomains of company.com are supported
 
-### Пример 3: Гибридная аутентификация
+### Example 3: Hybrid authentication
 
 ```bash
 # .env
@@ -437,28 +437,15 @@ TELEGRAM_BOT_USERNAME=my_bot
 TELEGRAM_AUTO_REGISTER=true
 ```
 
-**Пользователи могут:**
-1. Зарегистрироваться через форму (логин + пароль)
-2. Войти через Telegram (создается новый аккаунт)
-3. Привязать Telegram к существующему аккаунту (TODO: feature)
+**Users can:**
+1. Register via the form (username + password)
+2. Log in via Telegram (a new account is created)
+3. Link Telegram to an existing account (TODO: feature)
 
-## 🔗 Полезные ссылки
+## Useful Links
 
-- [Официальная документация Telegram Login Widget](https://core.telegram.org/widgets/login)
-- [Проверка авторизации](https://core.telegram.org/widgets/login#checking-authorization)
-- [@BotFather](https://t.me/botfather) - создание и настройка ботов
-- [ngrok](https://ngrok.com/) - туннелинг для локальной разработки
-- [Tailscale](https://tailscale.com/) - VPN для команд
-
-## 📞 Поддержка
-
-Если у вас возникли проблемы:
-
-1. Проверьте раздел [Troubleshooting](#troubleshooting)
-2. Посмотрите логи: `docker compose logs zid-app`
-3. Создайте issue на GitHub с описанием проблемы
-
----
-
-**Версия документа:** 1.0  
-**Дата обновления:** 2024
+- [Official Telegram Login Widget documentation](https://core.telegram.org/widgets/login)
+- [Authorization verification](https://core.telegram.org/widgets/login#checking-authorization)
+- [@BotFather](https://t.me/botfather) — bot creation and configuration
+- [ngrok](https://ngrok.com/) — tunneling for local development
+- [Tailscale](https://tailscale.com/) — VPN for teams
