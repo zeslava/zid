@@ -511,8 +511,3 @@ E2E test OIDC (discovery, client_credentials, jwks):
 - `docs/OIDC_TESTING.md` — OIDC/OAuth 2.0 testing guide
 - `docs/FREEBSD_SETUP.md` — FreeBSD installation and setup
 
----
-
-## License
-
-MIT
