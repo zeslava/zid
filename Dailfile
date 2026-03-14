@@ -1,0 +1,12 @@
+FROM 15.0-RELEASE                                                                                                                                                                     
+PARAM persist=true                                                                                                                                                                    
+
+COPY target/release/zid /usr/local/bin/zid                                                                                                                                            
+COPY scripts/zid.rc.d /usr/local/etc/rc.d/zid                                                                                                                                         
+COPY zid.jail.conf /usr/local/etc/zid/zid.conf                                                                                                                                        
+COPY oidc_jwt_private.pem /usr/local/etc/zid/oidc_jwt_private.pem                                                                                                                     
+COPY oidc_jwt_public.pem /usr/local/etc/zid/oidc_jwt_public.pem                                                                                                                       
+COPY oidc_clients.yaml /usr/local/etc/zid/oidc_clients.yaml                                                                                                                           
+
+SERVICE zid                                                                                                                                                                           
+LOG /var/log/zid/zid.log                                                                                                                                                            

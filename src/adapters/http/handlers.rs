@@ -2,6 +2,23 @@
 
 use std::sync::Arc;
 
+/// Экранирование строки для безопасной вставки в HTML-атрибуты и JS-литералы.
+fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            '/' => out.push_str("&#x2F;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 use axum::debug_handler;
 use axum::{
     Form, Json,
@@ -61,7 +78,8 @@ pub async fn login_form(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
-    let return_to = params.get("return_to").map(|s| s.as_str()).unwrap_or("");
+    let return_to_raw = params.get("return_to").map(|s| s.as_str()).unwrap_or("");
+    let return_to = html_escape(return_to_raw);
 
     // Если есть SSO cookie — аккуратно проверяем, что сессия действительно валидна.
     //
