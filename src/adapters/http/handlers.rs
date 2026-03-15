@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use tracing::{error, warn};
+
 /// Экранирование строки для безопасной вставки в HTML-атрибуты и JS-литералы.
 fn html_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -15,6 +17,48 @@ fn html_escape(s: &str) -> String {
             '/' => out.push_str("&#x2F;"),
             _ => out.push(c),
         }
+    }
+    out
+}
+
+/// CSRF: имя cookie и поля формы
+const CSRF_COOKIE_NAME: &str = "zid_csrf";
+/// Генерация случайного CSRF-токена (32 hex символа)
+fn generate_csrf_token() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+/// Извлечение CSRF-токена из cookie
+fn get_csrf_cookie(headers: &HeaderMap) -> Option<String> {
+    let cookie_header = headers.get(axum::http::header::COOKIE)?;
+    let cookie_str = cookie_header.to_str().ok()?;
+    for part in cookie_str.split(';') {
+        let part = part.trim();
+        let mut it = part.splitn(2, '=');
+        let name = it.next()?.trim();
+        let value = it.next().unwrap_or("").trim();
+        if name == CSRF_COOKIE_NAME && !value.is_empty() {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+/// Проверка CSRF: сравнение cookie и form field (double-submit cookie pattern)
+fn verify_csrf(headers: &HeaderMap, form_token: &str) -> bool {
+    match get_csrf_cookie(headers) {
+        Some(cookie_token) => {
+            !cookie_token.is_empty() && !form_token.is_empty() && cookie_token == form_token
+        }
+        None => false,
+    }
+}
+
+/// Строит Set-Cookie для CSRF-токена
+fn build_csrf_cookie(token: &str, secure: bool) -> String {
+    let mut out = format!("{CSRF_COOKIE_NAME}={token}; Path=/; SameSite=Lax");
+    if secure {
+        out.push_str("; Secure");
     }
     out
 }
@@ -114,6 +158,10 @@ pub async fn login_form(
     };
 
     if show_continue {
+        let csrf_token = generate_csrf_token();
+        let cookie_secure = crate::adapters::http::sso_cookie::cookie_secure_effective(&headers);
+        let csrf_cookie = build_csrf_cookie(&csrf_token, cookie_secure);
+
         let html = format!(
             r#"
                     <!DOCTYPE html>
@@ -143,6 +191,7 @@ pub async fn login_form(
                             <div class="row">
                                 <form method="post" action="/continue">
                                     <input type="hidden" name="return_to" value="{}" />
+                                    <input type="hidden" name="csrf_token" value="{}" />
                                     <button type="submit">Continue</button>
                                 </form>
 
@@ -158,10 +207,15 @@ pub async fn login_form(
                     </body>
                     </html>
                     "#,
-            return_to
+            return_to, csrf_token
         );
 
-        return axum::response::Html(html).into_response();
+        let mut resp = axum::response::Html(html).into_response();
+        resp.headers_mut().insert(
+            axum::http::header::SET_COOKIE,
+            axum::http::HeaderValue::from_str(&csrf_cookie).unwrap(),
+        );
+        return resp;
     }
 
     // Получаем bot username для Telegram Widget (опционально)
@@ -188,6 +242,10 @@ pub async fn login_form(
     } else {
         String::new()
     };
+
+    let csrf_token = generate_csrf_token();
+    let cookie_secure = crate::adapters::http::sso_cookie::cookie_secure_effective(&headers);
+    let csrf_cookie = build_csrf_cookie(&csrf_token, cookie_secure);
 
     let html = format!(
         r#"
@@ -240,6 +298,7 @@ pub async fn login_form(
                 <input type="text" name="username" placeholder="Username" required />
                 <input type="password" name="password" placeholder="Password" required />
                 <input type="hidden" name="return_to" value="{}" />
+                <input type="hidden" name="csrf_token" value="{}" />
                 <button type="submit">Login</button>
             </form>
             {}
@@ -298,7 +357,13 @@ pub async fn login_form(
         </body>
         </html>
         "#,
-        return_to, telegram_widget, return_to
+        return_to, csrf_token, telegram_widget, return_to
+    );
+
+    let mut resp = axum::response::Html(html).into_response();
+    resp.headers_mut().append(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&csrf_cookie).unwrap(),
     );
 
     if clear_cookie {
@@ -306,37 +371,42 @@ pub async fn login_form(
         cookie_cfg.ttl_secs = DEFAULT_SSO_TTL_SECS;
         let clear_cookie_value = build_clear_cookie(&cookie_cfg);
 
-        let mut resp = axum::response::Html(html).into_response();
-        resp.headers_mut().insert(
+        resp.headers_mut().append(
             axum::http::header::SET_COOKIE,
             axum::http::HeaderValue::from_str(&clear_cookie_value).unwrap(),
         );
-        return resp;
     }
 
-    axum::response::Html(html).into_response()
+    resp
 }
 
-pub async fn register_form(State(_state): State<RouterState>) -> impl IntoResponse {
-    let html = r#"
+pub async fn register_form(
+    State(_state): State<RouterState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    let csrf_token = generate_csrf_token();
+    let cookie_secure = crate::adapters::http::sso_cookie::cookie_secure_effective(&headers);
+    let csrf_cookie = build_csrf_cookie(&csrf_token, cookie_secure);
+
+    let html = format!(r#"
         <!DOCTYPE html>
         <html>
         <head>
             <title>ZID Registration</title>
             <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
             <style>
-                body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
-                form { display: flex; flex-direction: column; gap: 10px; }
-                input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
-                input.error { border-color: #dc3545; }
-                button { padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                button:hover { background: #218838; }
-                button:disabled { background: #6c757d; cursor: not-allowed; }
-                .link { text-align: center; margin-top: 15px; }
-                a { color: #007bff; text-decoration: none; }
-                a:hover { text-decoration: underline; }
-                .error-message { color: #dc3545; font-size: 14px; margin-top: -5px; display: none; }
-                .error-message.show { display: block; }
+                body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }}
+                form {{ display: flex; flex-direction: column; gap: 10px; }}
+                input {{ padding: 10px; border: 1px solid #ddd; border-radius: 4px; }}
+                input.error {{ border-color: #dc3545; }}
+                button {{ padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }}
+                button:hover {{ background: #218838; }}
+                button:disabled {{ background: #6c757d; cursor: not-allowed; }}
+                .link {{ text-align: center; margin-top: 15px; }}
+                a {{ color: #007bff; text-decoration: none; }}
+                a:hover {{ text-decoration: underline; }}
+                .error-message {{ color: #dc3545; font-size: 14px; margin-top: -5px; display: none; }}
+                .error-message.show {{ display: block; }}
             </style>
         </head>
         <body>
@@ -345,9 +415,11 @@ pub async fn register_form(State(_state): State<RouterState>) -> impl IntoRespon
                 <input type="text" name="username" id="username" placeholder="Username" required minlength="3" />
                 <input type="password" name="password" id="password" placeholder="Password" required minlength="6" />
                 <input type="password" name="password_confirm" id="password_confirm" placeholder="Confirm Password" required minlength="6" />
+                <input type="hidden" name="csrf_token" value="{}" />
                 <div class="error-message" id="passwordError">Passwords do not match</div>
                 <button type="submit" id="submitBtn">Register</button>
-            </form>
+            </form>"#, csrf_token);
+    let html2 = r#"
             <div class="link">
                 <a href="/">Already have an account? Login</a>
             </div>
@@ -382,7 +454,13 @@ pub async fn register_form(State(_state): State<RouterState>) -> impl IntoRespon
         </html>
     "#;
 
-    axum::response::Html(html)
+    let full_html = format!("{html}{html2}");
+    let mut resp = axum::response::Html(full_html).into_response();
+    resp.headers_mut().insert(
+        axum::http::header::SET_COOKIE,
+        axum::http::HeaderValue::from_str(&csrf_cookie).unwrap(),
+    );
+    resp
 }
 
 #[debug_handler]
@@ -391,6 +469,11 @@ pub async fn login_form_submit(
     headers: HeaderMap,
     Form(req): Form<LoginRequest>,
 ) -> impl IntoResponse {
+    if !verify_csrf(&headers, req.csrf_token.as_deref().unwrap_or("")) {
+        warn!("CSRF validation failed on login form");
+        return (StatusCode::FORBIDDEN, axum::response::Html("CSRF token invalid. <a href=\"/\">Back</a>")).into_response();
+    }
+
     let return_to = req.return_to.clone();
     let return_to_clone = return_to.clone();
     let username = req.username.trim().to_string();
@@ -503,7 +586,7 @@ pub async fn login_form_submit(
         }
         Ok(Err(e)) => {
             // Log the error for debugging (only on server)
-            eprintln!("Login failed for user '{}': {:?}", username_for_error, e);
+            warn!(username = %username_for_error, error = ?e, "Login failed");
 
             // Return minimal error page
             let html = r#"
@@ -576,6 +659,11 @@ pub async fn continue_as_form_submit(
     headers: HeaderMap,
     Form(req): Form<ContinueAsRequest>,
 ) -> impl IntoResponse {
+    if !verify_csrf(&headers, req.csrf_token.as_deref().unwrap_or("")) {
+        warn!("CSRF validation failed on continue form");
+        return (StatusCode::FORBIDDEN, axum::response::Html("CSRF token invalid. <a href=\"/\">Back</a>")).into_response();
+    }
+
     let session_id = match get_sso_session_id(&headers) {
         Some(s) => s,
         None => {
@@ -688,7 +776,7 @@ pub async fn continue_as_form_submit(
             resp
         }
         Ok(Err(e)) => {
-            eprintln!("Continue-as failed: {:?}", e);
+            warn!(error = ?e, "Continue-as failed");
             let html = r#"
                 <!DOCTYPE html>
                 <html>
@@ -831,8 +919,14 @@ pub async fn logout(
 
 pub async fn register_form_submit(
     State(state): State<RouterState>,
+    headers: HeaderMap,
     Form(req): Form<CreateUserRequest>,
 ) -> impl IntoResponse {
+    if !verify_csrf(&headers, req.csrf_token.as_deref().unwrap_or("")) {
+        warn!("CSRF validation failed on register form");
+        return (StatusCode::FORBIDDEN, axum::response::Html("CSRF token invalid. <a href=\"/register\">Back</a>")).into_response();
+    }
+
     // Нормализуем логин и пароль (убираем пробелы по краям)
     let username = req.username.trim().to_string();
     let password = req.password.trim().to_string();
@@ -1255,7 +1349,7 @@ pub struct HttpError(crate::ports::error::Error);
 impl IntoResponse for HttpError {
     fn into_response(self) -> Response {
         // Log the actual error for debugging (only on server)
-        eprintln!("Domain error: {:?}", self.0);
+        error!(error = ?self.0, "Domain error");
 
         // Map domain errors to HTTP status codes
         let status = match self.0 {

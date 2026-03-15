@@ -13,6 +13,8 @@ pub struct LoginRequest {
     pub password: String,
     #[serde(default)]
     pub return_to: Option<String>,
+    #[serde(default)]
+    pub csrf_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -36,6 +38,8 @@ impl IntoResponse for LoginResponse {
 pub struct ContinueAsRequest {
     #[serde(default)]
     pub return_to: Option<String>,
+    #[serde(default)]
+    pub csrf_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -77,6 +81,8 @@ pub struct CreateUserRequest {
     pub username: String,
     pub password: String,
     pub password_confirm: String,
+    #[serde(default)]
+    pub csrf_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

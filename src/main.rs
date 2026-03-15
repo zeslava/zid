@@ -4,6 +4,7 @@ use clap::Parser;
 use postgres::NoTls;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
+use tracing::{error, info, warn};
 
 use crate::{
     adapters::http::{handlers::RouterState, routes},
@@ -36,7 +37,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn run_server() -> anyhow::Result<()> {
-    println!("🚀 Starting ZID Server...");
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
+    info!("Starting ZID Server...");
 
     // Read configuration from environment variables
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
@@ -51,9 +59,11 @@ async fn run_server() -> anyhow::Result<()> {
     let credentials_storage =
         std::env::var("CREDENTIALS_STORAGE").unwrap_or_else(|_| "postgres".to_string());
 
-    println!(
-        "🔧 Хранилища: sessions={}, tickets={}, credentials={}",
-        session_storage, ticket_storage, credentials_storage
+    info!(
+        sessions = %session_storage,
+        tickets = %ticket_storage,
+        credentials = %credentials_storage,
+        "Storage backends configured"
     );
 
     // Определяем, какие бэкенды нужны
@@ -70,7 +80,7 @@ async fn run_server() -> anyhow::Result<()> {
         let pg_password =
             std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
 
-        println!("🔌 PostgreSQL: {}:{}/{}", pg_host, pg_port, pg_db);
+        info!(host = %pg_host, port = %pg_port, db = %pg_db, "Connecting to PostgreSQL");
 
         let pg_connection_string = format!(
             "host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_password}"
@@ -95,7 +105,7 @@ async fn run_server() -> anyhow::Result<()> {
             .await
             .expect("Failed to spawn blocking task")?;
 
-        println!("✅ PostgreSQL connection pool created");
+        info!("PostgreSQL connection pool created");
         Some(pool)
     } else {
         None
@@ -105,7 +115,7 @@ async fn run_server() -> anyhow::Result<()> {
     let sqlite_pool = if need_sqlite {
         let sqlite_path = std::env::var("SQLITE_PATH").unwrap_or_else(|_| "zid.db".to_string());
 
-        println!("🔌 SQLite: {}", sqlite_path);
+        info!(path = %sqlite_path, "Connecting to SQLite");
 
         let manager = r2d2_sqlite::SqliteConnectionManager::file(&sqlite_path)
             .with_init(|c| c.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;"));
@@ -122,7 +132,7 @@ async fn run_server() -> anyhow::Result<()> {
             .await
             .expect("Failed to spawn blocking task")?;
 
-        println!("✅ SQLite connection pool created");
+        info!("SQLite connection pool created");
         Some(pool)
     } else {
         None
@@ -158,12 +168,12 @@ async fn run_server() -> anyhow::Result<()> {
             })
             .await
             .expect("Failed to spawn blocking task")?;
-            println!("✅ Sessions initialized (SQLite)");
+            info!("Sessions initialized (SQLite)");
             Arc::new(repo)
         }
         "redis" => {
             let redis_client = redis::Client::open(redis_url.as_str())?;
-            println!("✅ Sessions initialized (Redis)");
+            info!("Sessions initialized (Redis)");
             Arc::new(
                 adapters::persistence::redis_session::RedisSessionRepository::new(redis_client),
             )
@@ -183,7 +193,7 @@ async fn run_server() -> anyhow::Result<()> {
             })
             .await
             .expect("Failed to spawn blocking task")?;
-            println!("✅ Sessions initialized (PostgreSQL)");
+            info!("Sessions initialized (PostgreSQL)");
             Arc::new(repo)
         }
     };
@@ -204,12 +214,12 @@ async fn run_server() -> anyhow::Result<()> {
             })
             .await
             .expect("Failed to spawn blocking task")?;
-            println!("✅ Tickets initialized (SQLite)");
+            info!("Tickets initialized (SQLite)");
             Arc::new(repo)
         }
         "redis" => {
             let redis_client = redis::Client::open(redis_url.as_str())?;
-            println!("✅ Tickets initialized (Redis)");
+            info!("Tickets initialized (Redis)");
             Arc::new(adapters::persistence::redis_ticket::RedisTicketRepository::new(redis_client))
         }
         _ => {
@@ -223,7 +233,7 @@ async fn run_server() -> anyhow::Result<()> {
             })
             .await
             .expect("Failed to spawn blocking task")?;
-            println!("✅ Tickets initialized (PostgreSQL)");
+            info!("Tickets initialized (PostgreSQL)");
             Arc::new(adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool))
         }
     };
@@ -248,12 +258,12 @@ async fn run_server() -> anyhow::Result<()> {
                 })
                 .await
                 .expect("Failed to spawn blocking task")?;
-                println!("✅ Credentials initialized (SQLite)");
+                info!("Credentials initialized (SQLite)");
                 Arc::new(repo)
             }
             "redis" => {
                 let redis_client = redis::Client::open(redis_url.as_str())?;
-                println!("✅ Credentials initialized (Redis)");
+                info!("Credentials initialized (Redis)");
                 Arc::new(
                     adapters::persistence::redis_credentials::RedisCredentialsRepository::new(
                         redis_client,
@@ -273,7 +283,7 @@ async fn run_server() -> anyhow::Result<()> {
             })
             .await
             .expect("Failed to spawn blocking task")?;
-                println!("✅ Credentials initialized (PostgreSQL)");
+                info!("Credentials initialized (PostgreSQL)");
                 Arc::new(
                     adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
                         get_pg(),
@@ -291,7 +301,7 @@ async fn run_server() -> anyhow::Result<()> {
         Arc::new(adapters::persistence::postgres_user::PostgresUserRepository::new(get_pg()))
     };
 
-    println!("✅ All repositories initialized");
+    info!("All repositories initialized");
 
     // Create ZID application service
     let zid_application: Arc<dyn ZidService> = Arc::new(ZidApp::new(
@@ -329,14 +339,11 @@ async fn run_server() -> anyhow::Result<()> {
         let clients_path = std::path::Path::new(&clients_file);
         let client_store = match FileClientStore::from_path(clients_path) {
             Ok(store) => {
-                println!("✅ OIDC clients loaded from {}", clients_file);
+                info!(file = %clients_file, "OIDC clients loaded");
                 Some(Arc::new(store) as Arc<dyn ClientStore>)
             }
             Err(e) => {
-                eprintln!(
-                    "⚠️ OIDC disabled: failed to load clients file {}: {}",
-                    clients_file, e
-                );
+                warn!(file = %clients_file, error = %e, "OIDC disabled: failed to load clients file");
                 None
             }
         };
@@ -350,7 +357,7 @@ async fn run_server() -> anyhow::Result<()> {
                             as Arc<dyn AuthCodeRepository>)
                     }
                     Err(e) => {
-                        eprintln!("⚠️ OIDC disabled: Redis required for auth codes: {}", e);
+                        warn!(error = %e, "OIDC disabled: Redis required for auth codes");
                         None
                     }
                 });
@@ -361,7 +368,7 @@ async fn run_server() -> anyhow::Result<()> {
             match OidcJwtKeys::from_pem_paths(priv_path, pub_path, "zid-rs256-1") {
                 Ok(k) => Some(Arc::new(k)),
                 Err(e) => {
-                    eprintln!("⚠️ OIDC disabled: failed to load JWT keys: {}", e);
+                    warn!(error = %e, "OIDC disabled: failed to load JWT keys");
                     None
                 }
             }
@@ -379,12 +386,13 @@ async fn run_server() -> anyhow::Result<()> {
             ));
             router_state =
                 router_state.with_oidc(oidc_app, oidc_issuer.trim_end_matches('/').to_string());
-            println!("✅ OIDC/OAuth 2.0 enabled (issuer: {})", oidc_issuer);
+            info!(issuer = %oidc_issuer, "OIDC/OAuth 2.0 enabled");
         } else {
-            eprintln!(
-                "⚠️ OIDC не включён: не хватает конфигурации (файл клиентов {}, Redis, JWT-ключи {} / {}). \
-                 Запросы к /oauth/* будут возвращать 503.",
-                clients_file, private_key_path, public_key_path
+            warn!(
+                clients_file = %clients_file,
+                private_key = %private_key_path,
+                public_key = %public_key_path,
+                "OIDC not enabled: missing config. /oauth/* will return 503"
             );
         }
     }
@@ -396,22 +404,47 @@ async fn run_server() -> anyhow::Result<()> {
     let listener = match tokio::net::TcpListener::bind(&bind_addr).await {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("Ошибка: не удалось привязаться к {}: {}", bind_addr, e);
+            error!(addr = %bind_addr, error = %e, "Failed to bind");
             std::process::exit(1);
         }
     };
 
-    println!();
-    println!("🚀 ZID Server listening on http://{}", bind_addr);
-    println!("   - Sessions storage: {}", session_storage);
-    println!("   - Tickets storage: {}", ticket_storage);
-    println!("   - Credentials storage: {}", credentials_storage);
-    println!();
+    info!(
+        addr = %bind_addr,
+        sessions = %session_storage,
+        tickets = %ticket_storage,
+        credentials = %credentials_storage,
+        "ZID Server listening"
+    );
 
-    if let Err(e) = axum::serve(listener, router).await {
-        eprintln!("Ошибка: не удалось запустить сервер: {}", e);
-        std::process::exit(1);
-    }
+    axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
+    info!("ZID Server stopped");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => info!("Received Ctrl+C, shutting down..."),
+        _ = terminate => info!("Received SIGTERM, shutting down..."),
+    }
 }
