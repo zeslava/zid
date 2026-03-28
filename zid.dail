@@ -1,7 +1,8 @@
 FROM 15.0-RELEASE                                                                                                                                                                     
-PARAM persist=true                                                                                                                                                                    
 
 SERVICE zid
+
+EXPOSE 5555
 
 COPY target/release/zid /usr/local/bin/zid                                                                                                                                            
 COPY scripts/zid.rc.d /usr/local/etc/rc.d/zid                                                                                                                                         
