@@ -5,7 +5,7 @@ SERVICE zid
 EXPOSE 5555
 
 COPY target/release/zid /usr/local/bin/zid                                                                                                                                            
-COPY zid.conf /usr/local/etc/zid/zid.conf                                                                                                                                        
+COPY zid.env /usr/local/etc/zid/zid.env                                                                                                                                        
 
 COPY oidc_jwt_private.pem /usr/local/etc/zid/oidc_jwt_private.pem                                                                                                                     
 COPY oidc_jwt_public.pem /usr/local/etc/zid/oidc_jwt_public.pem                                                                                                                       

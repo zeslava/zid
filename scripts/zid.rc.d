@@ -14,7 +14,7 @@
 # zid_user (str):		Пользователь для запуска. По умолчанию "zid".
 # zid_group (str):		Группа. По умолчанию "zid".
 # zid_env_file (str):		Файл с переменными окружения (см. rc.subr(8)).
-#				По умолчанию "/usr/local/etc/zid/zid.conf".
+#				По умолчанию "/usr/local/etc/zid/zid.env".
 # zid_config (str):		Устаревший синоним zid_env_file.
 # zid_logfile (str):		Файл логов. По умолчанию "/var/log/zid/zid.log".
 # zid_pidfile (str):		PID-файл. По умолчанию "/var/run/zid/zid.pid".
@@ -30,7 +30,7 @@ load_rc_config "$name"
 : ${zid_enable:=NO}
 : ${zid_user:=zid}
 : ${zid_group:=zid}
-: ${zid_config:=/usr/local/etc/zid/zid.conf}
+: ${zid_config:=/usr/local/etc/zid/zid.env}
 : ${zid_env_file:=$zid_config}
 # Пустой zid_env_file из rc.conf не переопределяет путь по умолчанию
 [ -z "$zid_env_file" ] && zid_env_file="$zid_config"

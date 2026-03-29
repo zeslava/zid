@@ -32,10 +32,10 @@ The script automatically:
 
 ### 3. Configuration
 
-Edit the environment variables file (default `/usr/local/etc/zid/zid.conf`):
+Edit the environment variables file (default `/usr/local/etc/zid/zid.env`):
 
 ```bash
-sudo nano /usr/local/etc/zid/zid.conf
+sudo nano /usr/local/etc/zid/zid.env
 ```
 
 Make sure the environment variables are correct (the application reads `SERVER_HOST`, `SERVER_PORT`, `POSTGRES_*`, `REDIS_URL`, etc. — see the section below).
@@ -99,7 +99,7 @@ If Docker is unavailable, manual setup is required: a cross-linker and FreeBSD a
 /usr/local/bin/zid                 # Service binary
 /usr/local/etc/rc.d/zid            # RC.D script (service management)
 /usr/local/etc/zid/                # ZID configuration directory
-  zid.conf                         # Environment variables file (zid_env_file)
+  zid.env                         # Environment variables file (zid_env_file)
   oidc_clients.yaml                # OIDC: clients (if OIDC is enabled)
   oidc_jwt_private.pem             # OIDC: JWT signing key
   oidc_jwt_public.pem              # OIDC: public key (JWKS)
@@ -119,7 +119,7 @@ zid_enable="YES"
 # Optional parameters (default values)
 zid_user="zid"                           # Unix user
 zid_group="zid"                          # Unix group
-zid_env_file="/usr/local/etc/zid/zid.conf"   # Environment variables file (see rc.subr(8))
+zid_env_file="/usr/local/etc/zid/zid.env"   # Environment variables file (see rc.subr(8))
 zid_logfile="/var/log/zid/zid.log"       # Log file
 zid_pidfile="/var/run/zid/zid.pid"       # PID file
 ```
@@ -274,8 +274,8 @@ curl http://localhost:3000/health
 ### Database connection error
 
 ```bash
-# Check DATABASE_URL in the zid_env_file (default /usr/local/etc/zid/zid.conf)
-sudo cat /usr/local/etc/zid/zid.conf | grep DATABASE_URL
+# Check DATABASE_URL in the zid_env_file (default /usr/local/etc/zid/zid.env)
+sudo cat /usr/local/etc/zid/zid.env | grep DATABASE_URL
 
 # Test the connection
 psql "postgresql://zid:pass@localhost/zid" -c "SELECT 1"
@@ -288,7 +288,7 @@ Check file permissions:
 ```bash
 ls -la /var/log/zid/
 ls -la /var/run/zid/
-ls -la /usr/local/etc/zid/zid.conf
+ls -la /usr/local/etc/zid/zid.env
 ```
 
 Fix if needed:
@@ -347,7 +347,7 @@ sudo sed -i '' '/zid_enable/d' /etc/rc.conf
 # 3. Remove files
 sudo rm /usr/local/bin/zid
 sudo rm /usr/local/etc/rc.d/zid
-sudo rm /usr/local/etc/zid/zid.conf
+sudo rm /usr/local/etc/zid/zid.env
 
 # 4. Remove user and directories (optional)
 sudo pw userdel zid

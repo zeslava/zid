@@ -26,4 +26,4 @@ target/
 *.pem
 oidc_clients.yaml
 cross
-zid.conf
+zid.env

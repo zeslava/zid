@@ -85,7 +85,7 @@ for dir in "$ZID_ETC_DIR" "$ZID_HOME" "$ZID_LOG_DIR" "$ZID_RUN_DIR"; do
     chown "$ZID_USER:$ZID_GROUP" "$dir"
     chmod 0750 "$dir"
 done
-# Каталог конфигов: root:zid, чтобы сервис (user zid) мог читать zid.conf и OIDC-файлы
+# Каталог конфигов: root:zid, чтобы сервис (user zid) мог читать zid.env и OIDC-файлы
 chown root:"$ZID_GROUP" "$ZID_ETC_DIR"
 chmod 750 "$ZID_ETC_DIR"
 echo "${GREEN}✓ Директории готовы${NC}"
@@ -107,7 +107,7 @@ echo ""
 
 # Создание конфиг-файла окружения
 echo "⚙️  Создание конфиг-файла окружения..."
-ENV_FILE="$ZID_ETC_DIR/zid.conf"
+ENV_FILE="$ZID_ETC_DIR/zid.env"
 
 if [ ! -f "$ENV_FILE" ]; then
     cat > "$ENV_FILE" <<'EOF'
@@ -170,7 +170,7 @@ echo ""
 echo "📋 Следующие шаги:"
 echo ""
 echo "1. Проверьте конфигурацию (отредактируйте если нужно):"
-echo "   ${YELLOW}nano /usr/local/etc/zid/zid.conf${NC}"
+echo "   ${YELLOW}nano /usr/local/etc/zid/zid.env${NC}"
 echo ""
 echo "2. Отредактируйте /etc/rc.conf для автозапуска (опционально):"
 echo "   ${YELLOW}echo 'zid_enable=\"YES\"' >> /etc/rc.conf${NC}"
