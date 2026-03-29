@@ -22,6 +22,7 @@ use crate::{
 mod adapters;
 mod application;
 mod cli;
+mod migrations;
 mod ports;
 
 #[tokio::main]
@@ -98,12 +99,12 @@ async fn run_server() -> anyhow::Result<()> {
             .build(pg_manager)
             .expect("Failed to create PostgreSQL connection pool");
 
-        // Инициализируем таблицу users в PostgreSQL
-        let user_repo_init =
-            adapters::persistence::postgres_user::PostgresUserRepository::new(pool.clone());
-        tokio::task::spawn_blocking(move || user_repo_init.create_table())
+        // Применяем миграции
+        let migrate_pool = pool.clone();
+        tokio::task::spawn_blocking(move || migrations::run_pg(&migrate_pool))
             .await
-            .expect("Failed to spawn blocking task")?;
+            .expect("Failed to spawn blocking task")
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         info!("PostgreSQL connection pool created");
         Some(pool)
@@ -179,22 +180,9 @@ async fn run_server() -> anyhow::Result<()> {
             )
         }
         _ => {
-            // postgres (default)
             let pool = get_pg();
-            let repo = adapters::persistence::postgres_session::PostgresSessionRepository::new(
-                pool.clone(),
-            );
-            tokio::task::spawn_blocking({
-                let pool = pool.clone();
-                move || {
-                    adapters::persistence::postgres_session::PostgresSessionRepository::new(pool)
-                        .create_table()
-                }
-            })
-            .await
-            .expect("Failed to spawn blocking task")?;
             info!("Sessions initialized (PostgreSQL)");
-            Arc::new(repo)
+            Arc::new(adapters::persistence::postgres_session::PostgresSessionRepository::new(pool))
         }
     };
 
@@ -224,15 +212,6 @@ async fn run_server() -> anyhow::Result<()> {
         }
         _ => {
             let pool = get_pg();
-            tokio::task::spawn_blocking({
-                let pool = pool.clone();
-                move || {
-                    adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool)
-                        .create_table()
-                }
-            })
-            .await
-            .expect("Failed to spawn blocking task")?;
             info!("Tickets initialized (PostgreSQL)");
             Arc::new(adapters::persistence::postgres_ticket::PostgresTicketRepository::new(pool))
         }
@@ -272,21 +251,10 @@ async fn run_server() -> anyhow::Result<()> {
             }
             _ => {
                 let pool = get_pg();
-                tokio::task::spawn_blocking({
-                let pool = pool.clone();
-                move || {
-                    adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
-                        pool,
-                    )
-                    .create_table()
-                }
-            })
-            .await
-            .expect("Failed to spawn blocking task")?;
                 info!("Credentials initialized (PostgreSQL)");
                 Arc::new(
                     adapters::persistence::postgres_credentials::PostgresCredentialsRepository::new(
-                        get_pg(),
+                        pool,
                     ),
                 )
             }
