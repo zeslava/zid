@@ -125,6 +125,10 @@ pub async fn login_form(
     let return_to_raw = params.get("return_to").map(|s| s.as_str()).unwrap_or("");
     let return_to = html_escape(return_to_raw);
 
+    // Если пользователь явно нажал "войти под другим пользователем" — пропускаем ветку Continue
+    // и чистим SSO cookie, чтобы показать форму логина.
+    let force_switch = params.get("switch").map(|s| s.as_str()) == Some("1");
+
     // Если есть SSO cookie — аккуратно проверяем, что сессия действительно валидна.
     //
     // Если сессия невалидна/просрочена:
@@ -134,6 +138,7 @@ pub async fn login_form(
     //
     // Важно: никаких повторных проверок — решение принимается один раз, далее просто строим ответ.
     let (show_continue, clear_cookie): (bool, bool) = match get_sso_session_id(&headers) {
+        _ if force_switch => (false, true),
         None => (false, false),
         Some(session_id) => {
             let state2 = state.clone();
@@ -196,6 +201,8 @@ pub async fn login_form(
                                 </form>
 
                                 <form method="get" action="/">
+                                    <input type="hidden" name="switch" value="1" />
+                                    <input type="hidden" name="return_to" value="{}" />
                                     <button type="submit" class="secondary">Sign in as another user</button>
                                 </form>
                             </div>
@@ -207,7 +214,7 @@ pub async fn login_form(
                     </body>
                     </html>
                     "#,
-            return_to, csrf_token
+            return_to, csrf_token, return_to
         );
 
         let mut resp = axum::response::Html(html).into_response();
