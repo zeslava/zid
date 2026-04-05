@@ -74,18 +74,31 @@ async fn run_server() -> anyhow::Result<()> {
 
     // PostgreSQL pool (создаём только при необходимости)
     let pg_pool = if need_postgres {
-        let pg_host = std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
-        let pg_port = std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
-        let pg_db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "zid".to_string());
-        let pg_user = std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
-        let pg_password =
-            std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
+        // Приоритет: DATABASE_URL (URL-формат, совместим с sqlx-cli),
+        // иначе собираем из POSTGRES_* (обратная совместимость).
+        let pg_connection_string = match std::env::var("DATABASE_URL") {
+            Ok(url) if !url.is_empty() => {
+                info!("Connecting to PostgreSQL (DATABASE_URL)");
+                url
+            }
+            _ => {
+                let pg_host =
+                    std::env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
+                let pg_port =
+                    std::env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
+                let pg_db = std::env::var("POSTGRES_DB").unwrap_or_else(|_| "zid".to_string());
+                let pg_user =
+                    std::env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
+                let pg_password =
+                    std::env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
 
-        info!(host = %pg_host, port = %pg_port, db = %pg_db, "Connecting to PostgreSQL");
+                info!(host = %pg_host, port = %pg_port, db = %pg_db, "Connecting to PostgreSQL");
 
-        let pg_connection_string = format!(
-            "host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_password}"
-        );
+                format!(
+                    "host={pg_host} port={pg_port} dbname={pg_db} user={pg_user} password={pg_password}"
+                )
+            }
+        };
 
         let pg_manager = PostgresConnectionManager::new(
             pg_connection_string
