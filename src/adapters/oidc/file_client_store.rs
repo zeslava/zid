@@ -23,7 +23,12 @@ pub struct ClientEntry {
     pub secret: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub redirect_uris: Option<Vec<String>>,
+    #[serde(default = "default_grant_types")]
     pub grant_types: Vec<String>,
+}
+
+fn default_grant_types() -> Vec<String> {
+    vec!["authorization_code".to_string()]
 }
 
 impl FileClientStore {
