@@ -10,6 +10,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
     ),
     ("004_create_credentials", include_str!("../migrations/004_create_credentials.up.sql")),
     ("005_init_placeholder", include_str!("../migrations/005_init_placeholder.up.sql")),
+    (
+        "006_create_oauth_auth_codes",
+        include_str!("../migrations/006_create_oauth_auth_codes.up.sql"),
+    ),
 ];
 
 /// Применяет непримёненные миграции к PostgreSQL.

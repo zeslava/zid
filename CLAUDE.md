@@ -64,7 +64,7 @@ adapters/persistence/ (PostgresXxx / RedisXxx repositories)
 - **String formatting**: Prefer `format!("User {username}")` over `format!("User {}", username)`
 - **Error handling**: Domain errors in `ports::error::Error`, mapped to HTTP status codes via `HttpError` in handlers
 - **Tests with infra deps**: Mark `#[ignore]`, place in `#[cfg(test)] mod tests` at end of file
-- **OIDC is optional**: Routes return 503 if OIDC is not configured (missing keys/clients/Redis)
+- **OIDC is optional**: Routes return 503 if OIDC is not configured (missing keys/clients). Auth codes are stored in PostgreSQL (table `oauth_auth_codes`)
 
 ## Key Environment Variables
 

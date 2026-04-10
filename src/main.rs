@@ -9,7 +9,7 @@ use tracing::{error, info, warn};
 use crate::{
     adapters::http::{handlers::RouterState, routes},
     adapters::oidc::file_client_store::FileClientStore,
-    adapters::persistence::redis_auth_code::RedisAuthCodeRepository,
+    adapters::persistence::postgres_auth_code::PostgresAuthCodeRepository,
     application::{oidc_app::OidcApp, oidc_jwt::OidcJwtKeys, zid_app::ZidApp},
     ports::{
         auth_code_repository::AuthCodeRepository, client_store::ClientStore,
@@ -67,9 +67,16 @@ async fn run_server() -> anyhow::Result<()> {
         "Storage backends configured"
     );
 
+    // OIDC включён по умолчанию; auth codes хранятся в PostgreSQL.
+    let oidc_wanted = std::env::var("OIDC_ENABLED")
+        .unwrap_or_else(|_| "true".to_string())
+        .to_lowercase();
+    let oidc_wanted = oidc_wanted == "true" || oidc_wanted == "1";
+
     // Определяем, какие бэкенды нужны
     let storages = [&session_storage, &ticket_storage, &credentials_storage];
-    let need_postgres = storages.iter().any(|s| s.to_lowercase() == "postgres");
+    let need_postgres =
+        storages.iter().any(|s| s.to_lowercase() == "postgres") || oidc_wanted;
     let need_sqlite = storages.iter().any(|s| s.to_lowercase() == "sqlite");
 
     // PostgreSQL pool (создаём только при необходимости)
@@ -292,12 +299,7 @@ async fn run_server() -> anyhow::Result<()> {
         ticket_repository,
     ));
 
-    // OIDC/OAuth 2.0: по умолчанию включён; при отсутствии конфига/ключей — запуск без OIDC
-    let oidc_wanted = std::env::var("OIDC_ENABLED")
-        .unwrap_or_else(|_| "true".to_string())
-        .to_lowercase();
-    let oidc_wanted = oidc_wanted == "true" || oidc_wanted == "1";
-
+    // OIDC/OAuth 2.0: при отсутствии конфига/ключей — запуск без OIDC
     let mut router_state = RouterState::new(zid_application);
 
     if oidc_wanted {
@@ -329,19 +331,9 @@ async fn run_server() -> anyhow::Result<()> {
             }
         };
 
-        let auth_code_repository =
-            client_store
-                .as_ref()
-                .and_then(|_| match redis::Client::open(redis_url.as_str()) {
-                    Ok(c) => {
-                        Some(Arc::new(RedisAuthCodeRepository::new(c))
-                            as Arc<dyn AuthCodeRepository>)
-                    }
-                    Err(e) => {
-                        warn!(error = %e, "OIDC disabled: Redis required for auth codes");
-                        None
-                    }
-                });
+        let auth_code_repository = client_store.as_ref().map(|_| {
+            Arc::new(PostgresAuthCodeRepository::new(get_pg())) as Arc<dyn AuthCodeRepository>
+        });
 
         let jwt_keys = client_store.as_ref().and_then(|_| {
             let priv_path = std::path::Path::new(&private_key_path);
