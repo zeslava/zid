@@ -395,6 +395,12 @@ async fn run_server() -> anyhow::Result<()> {
         .await?;
 
     info!("ZID Server stopped");
+
+    // Дроп пула postgres нужно делать вне async контекста — postgres crate использует block_on
+    if let Some(pool) = pg_pool {
+        tokio::task::spawn_blocking(move || drop(pool)).await.ok();
+    }
+
     Ok(())
 }
 
