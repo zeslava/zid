@@ -9,5 +9,5 @@ LOG /var/log/postgres/postgres.log
 
 RUN su -m postgres -c 'initdb -D /var/db/postgres/data18'
 
-COPY --chown=postgres:postgres postgresql.conf /var/db/postgres/data18/postgresql.conf
-COPY --chown=postgres:postgres pg_hba.conf /var/db/postgres/data18/pg_hba.conf
+COPY --chown=postgres:postgres dail/postgresql.conf /var/db/postgres/data18/postgresql.conf
+COPY --chown=postgres:postgres dail/pg_hba.conf /var/db/postgres/data18/pg_hba.conf
