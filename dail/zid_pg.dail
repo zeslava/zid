@@ -1,0 +1,13 @@
+FROM 15.0-RELEASE
+
+PARAM allow.sysvipc=true
+
+RUN pkg install -y postgresql18-server
+
+SERVICE postgres /usr/local/bin/postgres -D /var/db/postgres/data18
+LOG /var/log/postgres/postgres.log
+
+RUN su -m postgres -c 'initdb -D /var/db/postgres/data18'
+
+COPY --chown=postgres:postgres postgresql.conf /var/db/postgres/data18/postgresql.conf
+COPY --chown=postgres:postgres pg_hba.conf /var/db/postgres/data18/pg_hba.conf
