@@ -4,7 +4,7 @@ PARAM allow.sysvipc=true
 
 RUN pkg install -y postgresql18-server
 
-SERVICE postgresql --no-user : /usr/local/bin/postgres -D /var/db/postgres/data18 -c config_file=/usr/local/etc/postgresql/postgresql.conf -c hba_file=/usr/local/etc/postgresql/pg_hba.conf
+SERVICE postgresql --no-user --run-user=postgres : /usr/local/bin/postgres -D /var/db/postgres/data18 -c config_file=/usr/local/etc/postgresql/postgresql.conf -c hba_file=/usr/local/etc/postgresql/pg_hba.conf
 
 RUN su -l postgres -c 'initdb -D /var/db/postgres/data18'
 
