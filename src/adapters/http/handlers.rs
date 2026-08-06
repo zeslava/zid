@@ -21,6 +21,43 @@ fn html_escape(s: &str) -> String {
     out
 }
 
+/// Ссылка "назад" на форму логина с сохранением return_to,
+/// чтобы неудачная попытка входа не выбрасывала пользователя из OAuth-флоу.
+fn back_href(return_to: Option<&str>) -> String {
+    match return_to.filter(|s| !s.is_empty()) {
+        Some(url) => format!("/?return_to={}", urlencoding::encode(url)),
+        None => "/".to_string(),
+    }
+}
+
+/// Страница "Unauthorized" со ссылкой обратно на форму логина (с сохранённым return_to)
+fn login_error_page(return_to: Option<&str>) -> String {
+    format!(
+        r#"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Unauthorized</title>
+            <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+            <style>
+                body {{ font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }}
+                .error {{ padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center; }}
+                a {{ color: #007bff; text-decoration: none; }}
+                a:hover {{ text-decoration: underline; }}
+            </style>
+        </head>
+        <body>
+            <div class="error">
+                <h2>Unauthorized</h2>
+                <p><a href="{}">← Back</a></p>
+            </div>
+        </body>
+        </html>
+        "#,
+        html_escape(&back_href(return_to))
+    )
+}
+
 /// CSRF: имя cookie и поля формы
 const CSRF_COOKIE_NAME: &str = "zid_csrf";
 /// Генерация случайного CSRF-токена (32 hex символа)
@@ -478,7 +515,8 @@ pub async fn login_form_submit(
 ) -> impl IntoResponse {
     if !verify_csrf(&headers, req.csrf_token.as_deref().unwrap_or("")) {
         warn!("CSRF validation failed on login form");
-        return (StatusCode::FORBIDDEN, axum::response::Html("CSRF token invalid. <a href=\"/\">Back</a>")).into_response();
+        let href = html_escape(&back_href(req.return_to.as_deref()));
+        return (StatusCode::FORBIDDEN, axum::response::Html(format!("CSRF token invalid. <a href=\"{href}\">Back</a>"))).into_response();
     }
 
     let return_to = req.return_to.clone();
@@ -595,59 +633,21 @@ pub async fn login_form_submit(
             // Log the error for debugging (only on server)
             warn!(username = %username_for_error, error = ?e, "Login failed");
 
-            // Return minimal error page
-            let html = r#"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Unauthorized</title>
-                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-                    <style>
-                        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
-                        .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center; }
-                        a { color: #007bff; text-decoration: none; }
-                        a:hover { text-decoration: underline; }
-                    </style>
-                </head>
-                <body>
-                    <div class="error">
-                        <h2>Unauthorized</h2>
-                        <p><a href="/">← Back</a></p>
-                    </div>
-                </body>
-                </html>
-            "#;
-
-            (StatusCode::UNAUTHORIZED, axum::response::Html(html)).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                axum::response::Html(login_error_page(return_to.as_deref())),
+            )
+                .into_response()
         }
         Err(_e) => {
             // Log the error for debugging (only on server)
             // Task error already logged
 
-            // Return minimal error page
-            let html = r#"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Unauthorized</title>
-                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-                    <style>
-                        body { font-family: Arial, sans-serif; max-width: 400px; margin: 100px auto; padding: 20px; }
-                        .error { padding: 20px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center; }
-                        a { color: #007bff; text-decoration: none; }
-                        a:hover { text-decoration: underline; }
-                    </style>
-                </head>
-                <body>
-                    <div class="error">
-                        <h2>Unauthorized</h2>
-                        <p><a href="/">← Back</a></p>
-                    </div>
-                </body>
-                </html>
-            "#;
-
-            (StatusCode::UNAUTHORIZED, axum::response::Html(html)).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                axum::response::Html(login_error_page(return_to.as_deref())),
+            )
+                .into_response()
         }
     }
 }
@@ -668,27 +668,19 @@ pub async fn continue_as_form_submit(
 ) -> impl IntoResponse {
     if !verify_csrf(&headers, req.csrf_token.as_deref().unwrap_or("")) {
         warn!("CSRF validation failed on continue form");
-        return (StatusCode::FORBIDDEN, axum::response::Html("CSRF token invalid. <a href=\"/\">Back</a>")).into_response();
+        let href = html_escape(&back_href(req.return_to.as_deref()));
+        return (StatusCode::FORBIDDEN, axum::response::Html(format!("CSRF token invalid. <a href=\"{href}\">Back</a>"))).into_response();
     }
 
     let session_id = match get_sso_session_id(&headers) {
         Some(s) => s,
         None => {
             // No cookie -> user must log in again
-            let html = r#"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Unauthorized</title>
-                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-                </head>
-                <body>
-                    <h2>Unauthorized</h2>
-                    <p><a href="/">Back to login</a></p>
-                </body>
-                </html>
-            "#;
-            return (StatusCode::UNAUTHORIZED, axum::response::Html(html)).into_response();
+            return (
+                StatusCode::UNAUTHORIZED,
+                axum::response::Html(login_error_page(req.return_to.as_deref())),
+            )
+                .into_response();
         }
     };
     let return_to = req.return_to.clone();
@@ -784,37 +776,17 @@ pub async fn continue_as_form_submit(
         }
         Ok(Err(e)) => {
             warn!(error = ?e, "Continue-as failed");
-            let html = r#"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Unauthorized</title>
-                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-                </head>
-                <body>
-                    <h2>Unauthorized</h2>
-                    <p><a href="/">Back to login</a></p>
-                </body>
-                </html>
-            "#;
-            (StatusCode::UNAUTHORIZED, axum::response::Html(html)).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                axum::response::Html(login_error_page(return_to.as_deref())),
+            )
+                .into_response()
         }
-        Err(_e) => {
-            let html = r#"
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Unauthorized</title>
-                    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-                </head>
-                <body>
-                    <h2>Unauthorized</h2>
-                    <p><a href="/">Back to login</a></p>
-                </body>
-                </html>
-            "#;
-            (StatusCode::UNAUTHORIZED, axum::response::Html(html)).into_response()
-        }
+        Err(_e) => (
+            StatusCode::UNAUTHORIZED,
+            axum::response::Html(login_error_page(return_to.as_deref())),
+        )
+            .into_response(),
     }
 }
 

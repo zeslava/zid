@@ -293,6 +293,12 @@ impl ZidService for ZidApp {
 }
 
 fn validate_return_to(return_to: &str) -> bool {
+    // Относительный путь на самом ZID (например, /oauth/authorize?...) — свой origin, доверяем.
+    // "//host" и "/\host" браузер трактует как переход на чужой origin — отклоняем.
+    if return_to.starts_with('/') {
+        return !return_to.starts_with("//") && !return_to.contains('\\');
+    }
+
     // Простая проверка, что URL начинается с доверенного домена
     let url = Url::parse(return_to);
     if url.is_err() {
@@ -340,4 +346,27 @@ pub fn is_trusted_domain(host: &str) -> bool {
             false
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn relative_return_to_is_allowed() {
+        assert!(validate_return_to("/oauth/authorize?response_type=code&client_id=cfgy"));
+        assert!(validate_return_to("/"));
+    }
+
+    #[test]
+    fn protocol_relative_return_to_is_rejected() {
+        assert!(!validate_return_to("//evil.com/x"));
+        assert!(!validate_return_to("/\\evil.com"));
+    }
+
+    #[test]
+    fn absolute_return_to_checks_trusted_domain() {
+        assert!(validate_return_to("https://localhost/x"));
+        assert!(!validate_return_to("https://evil.com/x"));
+    }
 }

@@ -48,3 +48,7 @@ rsa = { version = "0.9", default-features = false, features = ["pem"] }
 lto = true
 codegen-units = 1
 strip = true
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
