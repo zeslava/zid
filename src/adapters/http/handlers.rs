@@ -174,32 +174,32 @@ pub async fn login_form(
     // - показываем обычную форму логина
     //
     // Важно: никаких повторных проверок — решение принимается один раз, далее просто строим ответ.
-    let (show_continue, clear_cookie): (bool, bool) = match get_sso_session_id(&headers) {
-        _ if force_switch => (false, true),
-        None => (false, false),
+    let (signed_in_as, clear_cookie): (Option<String>, bool) = match get_sso_session_id(&headers) {
+        _ if force_switch => (None, true),
+        None => (None, false),
         Some(session_id) => {
             let state2 = state.clone();
-            let session_id2 = session_id.clone();
 
-            let valid = tokio::task::spawn_blocking(move || {
-                // continue_as() делает:
-                // - sessions.get(session_id) (валидирует/чистит протухшую на стороне хранилища),
-                // - refresh expiry (sliding) и выдает тикет.
+            let resolved = tokio::task::spawn_blocking(move || {
+                // resolve_session() делает sessions.get(session_id) — хранилище само
+                // валидирует и чистит протухшую сессию — и отдаёт username.
                 //
-                // Здесь нам тикет не нужен — но это единственный публичный сервисный метод,
-                // гарантирующий проверку валидности session_id без прямого доступа к репозиториям.
-                state2.zid.continue_as(&session_id2, None).map(|_| ())
+                // Тикет здесь не нужен, поэтому не используем continue_as(): он бы
+                // плодил одноразовый тикет на каждый рендер страницы. Sliding refresh
+                // сессии всё равно произойдёт в continue_as() при нажатии "Continue".
+                state2.zid.resolve_session(&session_id)
             })
             .await;
 
-            match valid {
-                Ok(Ok(())) => (true, false),
-                _ => (false, true),
+            match resolved {
+                Ok(Ok(v)) => (Some(v.username), false),
+                _ => (None, true),
             }
         }
     };
 
-    if show_continue {
+    if let Some(username) = signed_in_as {
+        let username = html_escape(&username);
         let csrf_token = generate_csrf_token();
         let cookie_secure = crate::adapters::http::sso_cookie::cookie_secure_effective(&headers);
         let csrf_cookie = build_csrf_cookie(&csrf_token, cookie_secure);
@@ -228,18 +228,18 @@ pub async fn login_form(
                     <body>
                         <h1>ZID Login</h1>
                         <div class="card">
-                            <p class="muted">You're already signed in.</p>
+                            <p class="muted">Signed in as <strong>{username}</strong></p>
 
                             <div class="row">
                                 <form method="post" action="/continue">
-                                    <input type="hidden" name="return_to" value="{}" />
-                                    <input type="hidden" name="csrf_token" value="{}" />
-                                    <button type="submit">Continue</button>
+                                    <input type="hidden" name="return_to" value="{return_to}" />
+                                    <input type="hidden" name="csrf_token" value="{csrf_token}" />
+                                    <button type="submit">Continue as {username}</button>
                                 </form>
 
                                 <form method="get" action="/">
                                     <input type="hidden" name="switch" value="1" />
-                                    <input type="hidden" name="return_to" value="{}" />
+                                    <input type="hidden" name="return_to" value="{return_to}" />
                                     <button type="submit" class="secondary">Sign in as another user</button>
                                 </form>
                             </div>
@@ -250,8 +250,7 @@ pub async fn login_form(
                         </div>
                     </body>
                     </html>
-                    "#,
-            return_to, csrf_token, return_to
+                    "#
         );
 
         let mut resp = axum::response::Html(html).into_response();

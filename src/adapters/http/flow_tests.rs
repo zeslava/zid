@@ -148,6 +148,64 @@ async fn login_with_untrusted_return_to_is_rejected() {
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
+/// Карточка "уже вошли" должна называть текущего пользователя (account chooser UX).
+#[tokio::test]
+async fn login_form_shows_current_username() {
+    let f = setup();
+
+    let ticket = f.zid.login("alice", "secret123", None).unwrap();
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/")
+        .header(
+            header::COOKIE,
+            format!("{ZID_SSO_COOKIE_NAME}={}", ticket.session_id),
+        )
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = f.router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let html = body_string(resp).await;
+    assert!(html.contains("Signed in as <strong>alice</strong>"), "{html}");
+    assert!(html.contains("Continue as alice"), "{html}");
+}
+
+/// Протухшая/несуществующая сессия — обычная форма логина и очистка cookie.
+#[tokio::test]
+async fn login_form_with_dead_session_shows_form() {
+    let f = setup();
+
+    let req = Request::builder()
+        .method("GET")
+        .uri("/")
+        .header(
+            header::COOKIE,
+            format!("{ZID_SSO_COOKIE_NAME}=00000000-0000-0000-0000-000000000000"),
+        )
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = f.router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let cleared = resp
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .any(|v| {
+            let v = v.to_str().unwrap();
+            v.starts_with(&format!("{ZID_SSO_COOKIE_NAME}=")) && v.contains("Max-Age=0")
+        });
+    assert!(cleared, "протухшая SSO cookie должна очищаться");
+
+    let html = body_string(resp).await;
+    assert!(html.contains("name=\"password\""), "{html}");
+    assert!(!html.contains("Signed in as"), "{html}");
+}
+
 /// Страница ошибки не теряет return_to — пользователь остаётся в OAuth-флоу.
 #[tokio::test]
 async fn failed_login_keeps_return_to_in_back_link() {
